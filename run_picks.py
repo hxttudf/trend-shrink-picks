@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""每日多策略趋势选股 + T+N收益回填"""
+"""每日多策略趋势选股 — 每个策略独立MA60配置"""
 import sqlite3, json, sys, os
 from datetime import date, datetime
 from collections import defaultdict
@@ -11,10 +11,10 @@ SRC_DB = "/home/ubuntu/databases/Sequoia选股.db"
 OUT_DB = "/home/ubuntu/databases/trend_picks.db"
 
 STRATEGIES = {
-    'original':     {'dl':10,'dh':20,'vl':0,'vh':0.3,'pl':5,'ph':25},
-    'premium_a':    {'dl':12,'dh':25,'vl':0.1,'vh':0.3,'pl':3,'ph':15},
-    'premium_b':    {'dl':12,'dh':25,'vl':0,'vh':0.3,'pl':3,'ph':15},
-    'ultra_shrink': {'dl':10,'dh':20,'vl':0,'vh':0.15,'pl':3,'ph':15},
+    'original':     {'dl':10,'dh':20,'vl':0,'vh':0.3,'pl':5,'ph':25, 'ma60':False},
+    'premium_a':    {'dl':12,'dh':25,'vl':0.1,'vh':0.3,'pl':3,'ph':15, 'ma60':True},
+    'premium_b':    {'dl':12,'dh':25,'vl':0,'vh':0.3,'pl':3,'ph':15, 'ma60':True},
+    'ultra_shrink': {'dl':10,'dh':20,'vl':0,'vh':0.15,'pl':3,'ph':15, 'ma60':True},
 }
 
 def log(msg):
@@ -43,8 +43,9 @@ def run_picks(today_str):
             FROM stock_daily WHERE close_qfq > 0
         ),
         mavgs AS (
-            SELECT *,
+            SELECT symbol, date, price, close_raw, volume, turnover, open,
                 AVG(price) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma20,
+                AVG(price) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS ma60,
                 AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 19 PRECEDING AND 1 PRECEDING) AS avg_vol_20,
                 LAG(price, 20) OVER (PARTITION BY symbol ORDER BY date) AS price_20ago,
                 LEAD(open, 1) OVER (PARTITION BY symbol ORDER BY date) AS f1_open,
@@ -58,7 +59,7 @@ def run_picks(today_str):
                 LEAD(price, 20) OVER (PARTITION BY symbol ORDER BY date) AS f20_close
             FROM base
         )
-        SELECT symbol, date, price, close_raw, ma20, volume, avg_vol_20,
+        SELECT symbol, date, price, close_raw, ma20, ma60, volume, avg_vol_20,
                ROUND((price / ma20 - 1) * 100, 2) AS dist_ma20,
                ROUND(volume / NULLIF(avg_vol_20, 0), 2) AS vol_ratio,
                ROUND((price - price_20ago) / NULLIF(price_20ago, 0) * 100, 2) AS pct_20d,
@@ -73,7 +74,7 @@ def run_picks(today_str):
     log(f"今日趋势票: {n_trend}")
     
     rows = c.execute("""
-        SELECT symbol, date, price, close_raw, ma20, volume, avg_vol_20,
+        SELECT symbol, date, price, close_raw, ma20, ma60, volume, avg_vol_20,
                dist_ma20, vol_ratio, pct_20d,
                f1_open, f1_close_raw, f1_close, f2_close, f3_close, f5_close, f10_close, f15_close, f20_close
         FROM sig_today
@@ -90,7 +91,7 @@ def run_picks(today_str):
     
     picks = []
     for r in rows:
-        sym, dt, price, close_raw, ma20, vol, avg_vol, dist, vr, p20, f1o, f1cr, f1c, f2c, f3c, f5c, f10c, f15c, f20c = r
+        sym, dt, price, cr, ma20, ma60, vol, avgv, dist, vr, p20, f1o, f1cr, f1c, f2c, f3c, f5c, f10c, f15c, f20c = r
         
         if f1cr and f1cr > 0:
             bp = round(f1o * (f1c / f1cr), 4)
@@ -104,10 +105,11 @@ def run_picks(today_str):
             if not (s['dl'] <= dist < s['dh']): continue
             if not (s['vl'] <= vr < s['vh']): continue
             if p20 is None or not (s['pl'] <= p20 < s['ph']): continue
+            if s['ma60'] and (not ma60 or not (price > ma20 > ma60)): continue
             
             picks.append((dt, sid, sym, name_map.get(sym, ''),
-                         price, ma20, None, dist, vr, p20,
-                         vol, avg_vol, bp,
+                         price, ma20, ma60, dist, vr, p20,
+                         vol, avgv, bp,
                          rets[0], rets[1], rets[2], rets[3], rets[4], rets[5], rets[6]))
     return picks
 
