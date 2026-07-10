@@ -3,7 +3,13 @@
 # 标的：沪深主板
 # 买入：信号日次日开盘 | 卖出：持有20个交易日后收盘
 
-DEBUG_STOCKS = ('000892.XSHE','002989.XSHE','000811.XSHE','605028.XSHG','000608.XSHE','603813.XSHG')
+# 本地DB中极品B/超缩量命中的29只票 — 用于debug数据差异
+DEBUG_STOCKS = ('000421.XSHE','000608.XSHE','000609.XSHE','000691.XSHE','000785.XSHE',
+'000821.XSHE','001270.XSHE','002047.XSHE','002122.XSHE','002200.XSHE',
+'002471.XSHE','002537.XSHE','002570.XSHE','002620.XSHE','002674.XSHE',
+'002868.XSHE','600165.XSHG','600303.XSHG','600360.XSHG','600586.XSHG',
+'600753.XSHG','600962.XSHG','603216.XSHG','603496.XSHG','603533.XSHG',
+'603618.XSHG','603843.XSHG','605028.XSHG','605151.XSHG')
 
 def initialize(context):
     # 真实价格模式：attribute_history返回实际成交价，账户自动处理送转股
@@ -77,6 +83,8 @@ def screen_stocks(context):
             candidates.append({'stock':stock,'name':name,'strategy':s,
                                'd':round(dist_ma20,1),'vr':round(vol_ratio,2),
                                'p20':round(pct_20d,1),'c':round(today_c,2),'ma20':round(ma20,2)})
+            if stock in DEBUG_STOCKS:
+                log.info(f'  ✓[DEBUG]{stock} {name} 通过! 收盘{round(today_c,2)} MA20{round(ma20,2)} MA60{round(ma60,2)} 距MA20{dist_ma20:.1f}% 量比{vol_ratio:.2f} 20日涨幅{pct_20d:.1f}%')
         elif stock in DEBUG_STOCKS:
             fail = []
             if not (g.pb['dl'] <= dist_ma20 < g.pb['dh']): fail.append(f'距MA20({dist_ma20:.1f}%)')
