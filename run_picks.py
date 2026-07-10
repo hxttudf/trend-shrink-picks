@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""每日多策略选股 + T+N收益回填 — SQL窗口函数一键计算"""
+"""每日多策略趋势选股 + T+N收益回填"""
 import sqlite3, json, sys, os
 from datetime import date, datetime
 from collections import defaultdict
@@ -10,7 +10,6 @@ os.environ["HTTPS_PROXY"] = ""
 SRC_DB = "/home/ubuntu/databases/Sequoia选股.db"
 OUT_DB = "/home/ubuntu/databases/trend_picks.db"
 
-# 策略参数
 STRATEGIES = {
     'original':     {'dl':10,'dh':20,'vl':0,'vh':0.3,'pl':5,'ph':25},
     'premium_a':    {'dl':12,'dh':25,'vl':0.1,'vh':0.3,'pl':3,'ph':15},
@@ -25,11 +24,9 @@ def calc_ret(fp, bp):
     return round((fp/bp - 1)*100, 2) if fp and bp and bp > 0 else None
 
 def run_picks(today_str):
-    """运行选股"""
     conn = sqlite3.connect(SRC_DB)
     c = conn.cursor()
     
-    # 检查是否有数据
     has_data = c.execute("SELECT 1 FROM stock_daily WHERE date=? LIMIT 1", (today_str,)).fetchone()
     if not has_data:
         log("无数据（非交易日或数据未更新）")
@@ -38,7 +35,6 @@ def run_picks(today_str):
     
     log(f"扫描 {today_str}")
     
-    # 用SQL窗口函数一次性算所有趋势信号
     c.executescript(f"""
         DROP TABLE IF EXISTS sig_today;
         CREATE TEMP TABLE sig_today AS
@@ -76,7 +72,6 @@ def run_picks(today_str):
     n_trend = c.execute("SELECT COUNT(*) FROM sig_today").fetchone()[0]
     log(f"今日趋势票: {n_trend}")
     
-    # 取所有趋势数据
     rows = c.execute("""
         SELECT symbol, date, price, close_raw, ma20, volume, avg_vol_20,
                dist_ma20, vol_ratio, pct_20d,
@@ -84,7 +79,6 @@ def run_picks(today_str):
         FROM sig_today
     """).fetchall()
     
-    # 取名称
     syms = [r[0] for r in rows]
     name_map = {}
     for i in range(0, len(syms), 500):
@@ -92,15 +86,12 @@ def run_picks(today_str):
         ph = ",".join("?" * len(batch))
         for r2 in c.execute(f"SELECT symbol, name FROM stock_basics WHERE symbol IN ({ph}) GROUP BY symbol", batch):
             name_map[r2[0]] = r2[1]
-    
     conn.close()
     
-    # 匹配策略
     picks = []
     for r in rows:
         sym, dt, price, close_raw, ma20, vol, avg_vol, dist, vr, p20, f1o, f1cr, f1c, f2c, f3c, f5c, f10c, f15c, f20c = r
         
-        # 买入价
         if f1cr and f1cr > 0:
             bp = round(f1o * (f1c / f1cr), 4)
         else:
@@ -118,22 +109,17 @@ def run_picks(today_str):
                          price, ma20, None, dist, vr, p20,
                          vol, avg_vol, bp,
                          rets[0], rets[1], rets[2], rets[3], rets[4], rets[5], rets[6]))
-    
     return picks
 
 def save_picks(picks):
     if not picks:
         return
-    
     out = sqlite3.connect(OUT_DB)
-    
-    # 清空当天已有数据（防止重复运行）
     dates = set(p[0] for p in picks)
     for dt in dates:
         out.execute("DELETE FROM daily_picks WHERE date=?", (dt,))
         out.execute("DELETE FROM daily_summary WHERE date=?", (dt,))
     
-    # 写入
     out.executemany("""
         INSERT INTO daily_picks 
         (date, strategy_id, symbol, name, close_qfq, ma20, ma60, dist_ma20, vol_ratio, pct_20d,
@@ -141,27 +127,21 @@ def save_picks(picks):
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, picks)
     
-    # 汇总
     by_dt_sid = defaultdict(list)
     for p in picks:
         by_dt_sid[(p[0], p[1])].append(p[3])
-    
     for (dt, sid), syms_list in sorted(by_dt_sid.items()):
         out.execute("INSERT OR REPLACE INTO daily_summary (date, strategy_id, pick_count, symbols) VALUES (?,?,?,?)",
                     (dt, sid, len(syms_list), ", ".join(syms_list)))
-    
     out.commit()
     out.close()
 
 def main():
     today_str = date.today().strftime("%Y-%m-%d")
     log(f"=== 多策略趋势缩量选股 {today_str} ===")
-    
     picks = run_picks(today_str)
-    
     if picks:
         save_picks(picks)
-        # 按策略统计
         by_sid = defaultdict(list)
         for p in picks:
             by_sid[p[1]].append(p)
@@ -170,7 +150,6 @@ def main():
         log(f"总计: {len(picks)}信号")
     else:
         log("无信号")
-    
     return {"date": today_str, "picks": len(picks) if picks else 0}
 
 if __name__ == "__main__":
