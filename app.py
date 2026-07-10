@@ -142,6 +142,7 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
     dup_renew = 0
     dup_skip = 0
     prev_close = {}  # track yesterday's close per symbol for daily return
+    prev_nav = initial_capital  # real previous day NAV for daily P&L calc
     
     for date_idx, cur_date in enumerate(ad):
         # 当日价格
@@ -151,7 +152,8 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
             if c:
                 today_c[p['sym']] = c
         
-        prev_nav = cash + sum(p['ev'] for p in pf)
+        # 保存前一日NAV（真实市值，非买入成本）
+        nav_at_start = prev_nav
         
         # 到期卖出
         i = 0
@@ -233,8 +235,9 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
         
         daily_log.append({
             'd': cur_date, 'nav': round(nav, 2), 'cash': round(cash, 2),
-            'pos': positions, 'pnl': round(nav - prev_nav, 2), 'pc': len(positions)
+            'pos': positions, 'pnl': round(nav - nav_at_start, 2), 'pc': len(positions)
         })
+        prev_nav = nav
     
     # 清仓
     for p in pf:
@@ -376,6 +379,9 @@ with st.sidebar:
     st.caption("交互式回测平台")
     
     min_date, max_date = get_date_range()
+    today_date = date.today().strftime('%Y-%m-%d')
+    max_picker_date = datetime.strptime(max_date, '%Y-%m-%d').date() if max_date and max_date < today_date else date.today()
+    min_picker_date = datetime.strptime(min_date, '%Y-%m-%d').date() if min_date else date(2024, 1, 1)
     
     tab_mode = st.radio("功能", ["🏠 首页", "回测", "今日信号", "信号查询"])
     
@@ -385,15 +391,15 @@ with st.sidebar:
         
         start_date = st.date_input(
             "起始日期",
-            datetime.strptime(min_date, '%Y-%m-%d').date() if min_date else date(2024, 1, 1),
-            min_value=datetime.strptime(min_date, '%Y-%m-%d').date() if min_date else date(2024, 1, 1),
-            max_value=datetime.strptime(max_date, '%Y-%m-%d').date() if max_date else date.today()
+            min_picker_date,
+            min_value=min_picker_date,
+            max_value=max_picker_date
         )
         end_date = st.date_input(
             "结束日期",
-            datetime.strptime(max_date, '%Y-%m-%d').date() if max_date else date.today(),
-            min_value=datetime.strptime(min_date, '%Y-%m-%d').date() if min_date else date(2024, 1, 1),
-            max_value=datetime.strptime(max_date, '%Y-%m-%d').date() if max_date else date.today()
+            max_picker_date,
+            min_value=min_picker_date,
+            max_value=max_picker_date
         )
         
         st.subheader("策略选择")
