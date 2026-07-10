@@ -6,7 +6,6 @@
 DEBUG_STOCKS = ('000892.XSHE','002989.XSHE','000811.XSHE','605028.XSHG','000608.XSHE','603813.XSHG')
 
 def initialize(context):
-    set_option('use_real_price', False)
     g.max_positions = 4
     g.position_pct = 0.25
     g.hold_days = 20
@@ -31,9 +30,8 @@ def screen_stocks(context):
         if stock[0] in ('4','8','9'): continue
         passed_board += 1
         
-        df = get_price(stock, count=60, frequency='daily',
-                       fields=['close', 'volume', 'high_limit'],
-                       skip_paused=True, fq='pre', fill_paused=False)
+        df = attribute_history(stock, 60, '1d',
+                               ['close', 'volume', 'high_limit'], df=True, skip_paused=True)
         if df is None or len(df) < 60: continue
         passed_data += 1
         
