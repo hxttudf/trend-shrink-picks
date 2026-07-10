@@ -606,37 +606,53 @@ elif tab_mode == "回测":
             
             # ├─ 盈亏日历 ──
             st.divider()
-            st.subheader("🗓 盈亏日历")
+            st.subheader("🗓 盈亏日历（鼠标悬停查看持仓明细）")
+            
+            # Build position lookup by date
+            pos_by_date = {}
+            for d in result['daily_log']:
+                if d['pos']:
+                    pos_by_date[d['d']] = d['pos']
+            
             cal_data = defaultdict(dict)
             for d in result['daily_log']:
                 ym = d['d'][:7]
                 day = int(d['d'][8:10])
-                cal_data[ym][day] = d['pnl']
+                cal_data[ym][day] = {'pnl': d['pnl'], 'date': d['d'], 'pos': d['pos']}
             
             pnl_style = """
                 <style>
-                .cal-table {border-collapse:collapse;font-size:11px;width:100%;}
-                .cal-table th {background:#2c3e50;color:white;padding:4px;text-align:center;}
-                .cal-table td {padding:3px;text-align:center;border:1px solid #ecf0f1;min-width:22px;font-size:10px;}
-                .day-num {font-size:8px;color:#999;}
-                .pnl-big-pos {background:#c0392b;color:white;font-weight:bold;}
+                .cal-table {border-collapse:collapse;font-size:11px;width:100%;table-layout:fixed;}
+                .cal-table th {background:#2c3e50;color:white;padding:4px;text-align:center;font-size:11px;width:14.28%;}
+                .cal-table td {padding:3px;text-align:center;border:1px solid #ecf0f1;min-width:22px;font-size:10px;cursor:default;position:relative;}
+                .cal-amount {font-size:11px;font-weight:bold;display:block;line-height:1.3;}
+                .cal-day {font-size:8px;color:#666;display:block;opacity:0.7;}
+                .cal-tooltip {visibility:hidden;position:absolute;z-index:100;bottom:120%;left:50%;transform:translateX(-50%);
+                              background:#2c3e50;color:white;padding:6px 10px;border-radius:6px;font-size:11px;
+                              white-space:nowrap;text-align:left;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+                .cal-tooltip::after {content:'';position:absolute;top:100%;left:50%;margin-left:-5px;
+                                     border:5px solid transparent;border-top-color:#2c3e50;}
+                td:hover .cal-tooltip {visibility:visible;}
+                .pnl-big-pos {background:#c0392b;color:white;}
                 .pnl-pos {background:#e74c3c;color:white;}
-                .pnl-small-pos {background:#f1948a;}
-                .pnl-zero {background:#f0f0f0;}
-                .pnl-small-neg {background:#a9dfbf;}
+                .pnl-small-pos {background:#f1948a;color:#2c3e50;}
+                .pnl-zero {background:#f0f0f0;color:#999;}
+                .pnl-small-neg {background:#a9dfbf;color:#2c3e50;}
                 .pnl-neg {background:#27ae60;color:white;}
-                .pnl-big-neg {background:#1e8449;color:white;font-weight:bold;}
-                .cal-label {font-size:12px;color:#7f8c8d;margin-bottom:8px;}
+                .pnl-big-neg {background:#1e8449;color:white;}
+                .pname {font-weight:bold;}
+                .ppos {color:#e74c3c;}
+                .pneg {color:#27ae60;}
                 </style>
             """
             st.markdown(pnl_style, unsafe_allow_html=True)
             st.markdown(
-                '<span class="cal-label">颜色：'
+                '<span class="cal-label" style="font-size:12px;color:#7f8c8d;">颜色：'
                 '<span style="background:#c0392b;color:white;padding:1px 4px;">大赚</span> '
                 '<span style="background:#e74c3c;color:white;padding:1px 4px;">中赚</span> '
-                '<span style="background:#f1948a;padding:1px 4px;">小赚</span> '
+                '<span style="background:#f1948a;color:#2c3e50;padding:1px 4px;">小赚</span> '
                 '<span style="background:#f0f0f0;padding:1px 4px;">持平</span> '
-                '<span style="background:#a9dfbf;padding:1px 4px;">小亏</span> '
+                '<span style="background:#a9dfbf;color:#2c3e50;padding:1px 4px;">小亏</span> '
                 '<span style="background:#27ae60;color:white;padding:1px 4px;">中亏</span> '
                 '<span style="background:#1e8449;color:white;padding:1px 4px;">大亏</span>'
                 '</span>',
@@ -648,7 +664,6 @@ elif tab_mode == "回测":
                 first = datetime.strptime(ym + '-01', '%Y-%m-%d')
                 fw = first.weekday()
                 
-                # determine month days
                 m = int(ym[5:7])
                 y = int(ym[:4])
                 if m in (1,3,5,7,8,10,12):
@@ -663,29 +678,46 @@ elif tab_mode == "回测":
                 html = '<table class="cal-table"><tr><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th></tr><tr>'
                 for _ in range(fw):
                     html += '<td></td>'
+                
                 for day in range(1, md + 1):
-                    pnl = days.get(day)
-                    cls = 'pnl-zero'
-                    tip = ''
-                    if pnl is not None:
-                        tip = f'{ym}-{day:02d} {pnl:+.0f}元'
-                        if pnl > 5000:
-                            cls = 'pnl-big-pos'
-                        elif pnl > 1000:
-                            cls = 'pnl-pos'
-                        elif pnl > 0:
-                            cls = 'pnl-small-pos'
-                        elif pnl == 0:
-                            cls = 'pnl-zero'
-                        elif pnl > -1000:
-                            cls = 'pnl-small-neg'
-                        elif pnl > -5000:
-                            cls = 'pnl-neg'
-                        else:
-                            cls = 'pnl-big-neg'
-                    html += f'<td class="{cls}" title="{tip}"><span class="day-num">{day}</span></td>'
+                    cell = days.get(day)
+                    if cell is None:
+                        html += '<td><span class="cal-day">{}</span></td>'.format(day)
+                    else:
+                        pnl = cell['pnl']
+                        date_str = cell['date']
+                        pos_list = cell['pos']
+                        
+                        if pnl > 5000: cls = 'pnl-big-pos'
+                        elif pnl > 1000: cls = 'pnl-pos'
+                        elif pnl > 0: cls = 'pnl-small-pos'
+                        elif pnl == 0: cls = 'pnl-zero'
+                        elif pnl > -1000: cls = 'pnl-small-neg'
+                        elif pnl > -5000: cls = 'pnl-neg'
+                        else: cls = 'pnl-big-neg'
+                        
+                        # Build tooltip
+                        tip_lines = [f'{date_str} 盈亏: {pnl:+.0f}元']
+                        if pos_list:
+                            tip_lines.append('──持仓──')
+                            for p in pos_list[:6]:  # max 6 positions
+                                ret_cls = 'ppos' if p['ret'] >= 0 else 'pneg'
+                                tip_lines.append(f'{p["n"]}: <span class="{ret_cls}">{p["ret"]:+.1f}%</span>')
+                            if len(pos_list) > 6:
+                                tip_lines.append(f'...还有{len(pos_list)-6}只')
+                        
+                        tip_html = '<br>'.join(tip_lines)
+                        amt = f'{pnl:+.0f}'
+                        
+                        html += f'<td class="{cls}">'
+                        html += f'<span class="cal-amount">{amt}</span>'
+                        html += f'<span class="cal-day">{day}</span>'
+                        html += f'<span class="cal-tooltip">{tip_html}</span>'
+                        html += '</td>'
+                    
                     if (fw + day) % 7 == 0:
                         html += '</tr><tr>'
+                
                 html += '</tr></table>'
                 st.markdown(html, unsafe_allow_html=True)
             
