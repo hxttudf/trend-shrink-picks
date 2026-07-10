@@ -148,7 +148,7 @@ def save_picks(picks):
         (date, strategy_id, symbol, name, close_qfq, ma20, ma60, dist_ma20, vol_ratio, pct_20d,
          volume, avg_vol_20d, buy_price, ret_t1, ret_t2, ret_t3, ret_t5, ret_t10, ret_t15, ret_t20,
          ret_t25, ret_t30, ret_t35, ret_t40, ret_t45, ret_t50, ret_t55, ret_t60,
-         ret_t100, ret_t150, ret_t200)
+         ret_100, ret_150, ret_200)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, picks)
     
