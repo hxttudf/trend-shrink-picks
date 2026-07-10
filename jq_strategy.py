@@ -21,7 +21,7 @@ def initialize(context):
     run_daily(trade, time='open')
 
 def debug(msg):
-    if g.get('log_debug', False):
+    if hasattr(g, 'log_debug') and g.log_debug:
         log.info(msg)
 
 def screen_stocks(context):
