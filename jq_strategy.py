@@ -31,8 +31,9 @@ def screen_stocks(context):
         if stock[0] in ('4','8','9'): continue
         passed_board += 1
         
-        df = attribute_history(stock, 60, '1d',
-                               ['close', 'volume', 'high_limit'], df=True, skip_paused=True)
+        df = get_price(stock, count=60, frequency='daily',
+                       fields=['close', 'volume', 'high_limit'],
+                       skip_paused=True, fq='pre', fill_paused=False)
         if df is None or len(df) < 60: continue
         passed_data += 1
         
