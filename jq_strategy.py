@@ -6,6 +6,8 @@
 DEBUG_STOCKS = ('000892.XSHE','002989.XSHE','000811.XSHE','605028.XSHG','000608.XSHE','603813.XSHG')
 
 def initialize(context):
+    # 真实价格模式：attribute_history返回实际成交价，账户自动处理送转股
+    set_option('use_real_price', True)
     g.max_positions = 4
     g.position_pct = 0.25
     g.hold_days = 20
