@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>趋势缩量选股 — 回测平台</title>
+<style>
+* {margin:0;padding:0;box-sizing:border-box;}
+body {font-family:'WenQuanYi Zen Hei','Microsoft YaHei',sans-serif;background:#f5f6fa;color:#2c3e50;display:flex;justify-content:center;align-items:center;min-height:100vh;}
+.card {background:white;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);padding:40px;max-width:600px;width:90%;text-align:center;}
+h1 {font-size:24px;margin-bottom:10px;color:#2c3e50;}
+p {font-size:14px;color:#7f8c8d;margin-bottom:30px;}
+.links {display:flex;flex-direction:column;gap:15px;}
+.links a {display:block;padding:16px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;transition:transform 0.2s,box-shadow 0.2s;}
+.links a:hover {transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.15);}
+.links a.primary {background:linear-gradient(135deg,#3498db,#2c3e50);color:white;}
+.links a.secondary {background:#ecf0f1;color:#2c3e50;}
+.links a.report {background:linear-gradient(135deg,#27ae60,#1e8449);color:white;}
+.links a {font-size:14px;}
+small {display:block;margin-top:5px;font-weight:normal;opacity:0.8;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📊 趋势缩量选股</h1>
+  <p>策略：原版 / 极品A / 极品B / 超缩量</p>
+  <div class="links">
+    <a class="primary" href="http://103.151.172.93:8503" target="_blank">
+      🚀 交互式回测平台
+      <small>任意时间段 · 策略组合选择 · 今日信号查询</small>
+    </a>
+    <a class="report" href="回测报告_NAV25%.html" target="_blank">
+      📈 方案A回测报告（极品B+超缩量）
+      <small>CAGR 84.7% · 72.58万</small>
+    </a>
+    <a class="secondary" href="回测报告_三策略合并.html" target="_blank">
+      📉 方案B回测报告（极品A+B+超缩量）
+      <small>CAGR 75.7% · 65.35万</small>
+    </a>
+  </div>
+  <p style="margin-top:30px;font-size:11px;color:#bdc3c7;">
+    运行周期：每日15:22 · 仓位：NAV25%/只×4只 · 持有20天续期<br>
+    数据源：trend_picks.db
+  </p>
+</div>
+</body>
+</html>
