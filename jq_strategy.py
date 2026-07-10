@@ -31,7 +31,7 @@ def screen_stocks(context):
         passed_board += 1
         
         df = attribute_history(stock, 60, '1d',
-                               ['close', 'volume', 'high_limit'], df=True, skip_paused=True)
+                               ['close', 'volume', 'high_limit'], df=True, skip_paused=True, fq='pre')
         if df is None or len(df) < 60: continue
         passed_data += 1
         
