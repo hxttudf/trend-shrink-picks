@@ -1,0 +1,3 @@
+# 依赖同 Sequoia 环境
+# 运行时直接用 /home/ubuntu/Sequoia-X-a/.venv-host/bin/python3
+# 不需要额外安装
