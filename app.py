@@ -105,9 +105,10 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
     
     def get_kl(sig):
         bd = datetime.strptime(sig['d'], '%Y-%m-%d')
+        fetch_end = (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=60)).strftime('%Y-%m-%d')
         rows = cs.execute(
             "SELECT date, close_qfq FROM stock_daily WHERE symbol=? AND date>=? AND date<=? ORDER BY date",
-            (sig['s'], bd.strftime('%Y-%m-%d'), (bd + timedelta(days=85)).strftime('%Y-%m-%d'))
+            (sig['s'], bd.strftime('%Y-%m-%d'), fetch_end)
         ).fetchall()
         if not rows or len(rows) < 3 or not sig['bp'] or sig['bp'] <= 0:
             return None
@@ -161,18 +162,7 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
             p = pf[i]
             c = today_c.get(p['sym'])
             if c is None:
-                # 无价格数据（K线超期）→ 以最后已知价强制卖出
-                last_p = p.get('lp', p['bp'])
-                if last_p and last_p > 0:
-                    ev = p['ev'] * (last_p / p['bp']) if p['bp'] > 0 else p['ev']
-                    ret = (last_p / p['bp'] - 1) * 100 if p['bp'] > 0 else 0
-                    cash += ev
-                    trades.append({
-                        'n': p['n'], 's': p['sym'],
-                        'ret': round(ret, 1), 'pnl': round(ev - p['ev'], 2),
-                        'buy': p['d'], 'sell': cur_date, 'hc': p.get('hc', 0)
-                    })
-                pf.pop(i)
+                i += 1
                 continue
             p['hc'] = p.get('hc', 0) + 1
             
