@@ -141,6 +141,7 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
     daily_log = []
     dup_renew = 0
     dup_skip = 0
+    prev_close = {}  # track yesterday's close per symbol for daily return
     
     for date_idx, cur_date in enumerate(ad):
         # 当日价格
@@ -212,6 +213,7 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
                             'sym': sig['s'], 'n': sig['n'], 'bp': bp + cost,
                             'd': sig['d'], 'ev': buy_amt, 'lp': bp + cost, 'hc': 0
                         })
+                        prev_close[sig['s']] = bp + cost  # first day compare vs buy price
         
         # 日终记录
         nav = cash
@@ -220,10 +222,13 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
             cp = today_c.get(p['sym']) or p.get('lp', p['bp'])
             cv = p['ev'] * (cp / p['bp']) if p['bp'] > 0 else p['ev']
             ret = (cp / p['bp'] - 1) * 100 if p['bp'] > 0 else 0
+            d_ret = (cp / prev_close.get(p['sym'], p['bp']) - 1) * 100 if prev_close.get(p['sym'], p['bp']) > 0 else 0
             positions.append({
                 'n': p['n'], 's': p['sym'], 'ev': round(p['ev'], 2),
-                'cv': round(cv, 2), 'ret': round(ret, 1), 'hc': p['hc']
+                'cv': round(cv, 2), 'ret': round(ret, 1), 'hc': p['hc'],
+                'daily_ret': round(d_ret, 1)
             })
+            prev_close[p['sym']] = cp
             nav += cv
         
         daily_log.append({
@@ -606,7 +611,7 @@ elif tab_mode == "回测":
             
             # ├─ 盈亏日历 ──
             st.divider()
-            st.subheader("🗓 盈亏日历（累计，鼠标悬停查看明细）")
+            st.subheader("🗓 盈亏日历（鼠标悬停查看明细）")
             
             # Build position lookup by date
             pos_by_date = {}
@@ -691,26 +696,25 @@ elif tab_mode == "回测":
                         date_str = cell['date']
                         pos_list = cell['pos']
                         
-                        if cum > 5000: cls = 'pnl-big-pos'
-                        elif cum > 1000: cls = 'pnl-pos'
-                        elif cum > 0: cls = 'pnl-small-pos'
-                        elif cum == 0: cls = 'pnl-zero'
-                        elif cum > -1000: cls = 'pnl-small-neg'
-                        elif cum > -5000: cls = 'pnl-neg'
+                        if pnl > 5000: cls = 'pnl-big-pos'
+                        elif pnl > 1000: cls = 'pnl-pos'
+                        elif pnl > 0: cls = 'pnl-small-pos'
+                        elif pnl == 0: cls = 'pnl-zero'
+                        elif pnl > -1000: cls = 'pnl-small-neg'
+                        elif pnl > -5000: cls = 'pnl-neg'
                         else: cls = 'pnl-big-neg'
                         
                         # Build tooltip
-                        tip_lines = [f'{date_str} 累计{cum:+.0f}元 | 当日{pnl:+.0f}元']
+                        tip_lines = [f'{date_str} 当日{pnl:+.0f}元 | 累计{cum:+.0f}元']
                         if pos_list:
-                            tip_lines.append('──持仓──')
-                            for p in pos_list[:6]:  # max 6 positions
-                                ret_cls = 'ppos' if p['ret'] >= 0 else 'pneg'
-                                tip_lines.append(f'{p["n"]}: <span class="{ret_cls}">{p["ret"]:+.1f}%</span>')
+                            for p in pos_list[:6]:
+                                ret_cls = 'ppos' if p['daily_ret'] >= 0 else 'pneg'
+                                tip_lines.append(f'{p["n"]}: <span class="{ret_cls}">{p["daily_ret"]:+.1f}%</span>')
                             if len(pos_list) > 6:
                                 tip_lines.append(f'...还有{len(pos_list)-6}只')
                         
                         tip_html = '<br>'.join(tip_lines)
-                        amt = f'{cum:+.0f}'
+                        amt = f'{pnl:+.0f}'
                         
                         html += f'<td class="{cls}">'
                         html += f'<span class="cal-amount">{amt}</span>'
