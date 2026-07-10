@@ -64,7 +64,10 @@ def run_picks(today_str):
                 LEAD(price, 45) OVER (PARTITION BY symbol ORDER BY date) AS f45_close,
                 LEAD(price, 50) OVER (PARTITION BY symbol ORDER BY date) AS f50_close,
                 LEAD(price, 55) OVER (PARTITION BY symbol ORDER BY date) AS f55_close,
-                LEAD(price, 60) OVER (PARTITION BY symbol ORDER BY date) AS f60_close
+                LEAD(price, 60) OVER (PARTITION BY symbol ORDER BY date) AS f60_close,
+                LEAD(price, 100) OVER (PARTITION BY symbol ORDER BY date) AS f100_close,
+                LEAD(price, 150) OVER (PARTITION BY symbol ORDER BY date) AS f150_close,
+                LEAD(price, 200) OVER (PARTITION BY symbol ORDER BY date) AS f200_close
             FROM base
         )
         SELECT symbol, date, price, close_raw, ma20, ma60, volume, avg_vol_20,
@@ -72,7 +75,8 @@ def run_picks(today_str):
                ROUND(volume / NULLIF(avg_vol_20, 0), 2) AS vol_ratio,
                ROUND((price - price_20ago) / NULLIF(price_20ago, 0) * 100, 2) AS pct_20d,
                f1_open, f1_close_raw, f1_close, f2_close, f3_close, f5_close, f10_close, f15_close, f20_close,
-               f25_close, f30_close, f35_close, f40_close, f45_close, f50_close, f55_close, f60_close
+               f25_close, f30_close, f35_close, f40_close, f45_close, f50_close, f55_close, f60_close,
+               f100_close, f150_close, f200_close
         FROM mavgs
         WHERE date = '{today_str}'
           AND ma20 IS NOT NULL AND avg_vol_20 IS NOT NULL AND avg_vol_20 > 0
@@ -86,7 +90,8 @@ def run_picks(today_str):
         SELECT symbol, date, price, close_raw, ma20, ma60, volume, avg_vol_20,
                dist_ma20, vol_ratio, pct_20d,
                f1_open, f1_close_raw, f1_close, f2_close, f3_close, f5_close, f10_close, f15_close, f20_close,
-               f25_close, f30_close, f35_close, f40_close, f45_close, f50_close, f55_close, f60_close
+               f25_close, f30_close, f35_close, f40_close, f45_close, f50_close, f55_close, f60_close,
+               f100_close, f150_close, f200_close
         FROM sig_today
     """).fetchall()
     
@@ -101,7 +106,7 @@ def run_picks(today_str):
     
     picks = []
     for r in rows:
-        sym, dt, price, cr, ma20, ma60, vol, avgv, dist, vr, p20, f1o, f1cr, f1c, f2c, f3c, f5c, f10c, f15c, f20c, f25c, f30c, f35c, f40c, f45c, f50c, f55c, f60c = r
+        sym, dt, price, cr, ma20, ma60, vol, avgv, dist, vr, p20, f1o, f1cr, f1c, f2c, f3c, f5c, f10c, f15c, f20c, f25c, f30c, f35c, f40c, f45c, f50c, f55c, f60c, f100c, f150c, f200c = r
         
         if f1cr and f1cr > 0:
             bp = round(f1o * (f1c / f1cr), 4)
@@ -112,7 +117,8 @@ def run_picks(today_str):
                 calc_ret(f5c, bp), calc_ret(f10c, bp), calc_ret(f15c, bp), calc_ret(f20c, bp),
                 calc_ret(f25c, bp), calc_ret(f30c, bp), calc_ret(f35c, bp),
                 calc_ret(f40c, bp), calc_ret(f45c, bp), calc_ret(f50c, bp),
-                calc_ret(f55c, bp), calc_ret(f60c, bp))
+                calc_ret(f55c, bp), calc_ret(f60c, bp),
+                calc_ret(f100c, bp), calc_ret(f150c, bp), calc_ret(f200c, bp))
         
         for sid, s in STRATEGIES.items():
             if not (s['dl'] <= dist < s['dh']): continue
@@ -124,7 +130,8 @@ def run_picks(today_str):
                          price, ma20, ma60, dist, vr, p20,
                          vol, avgv, bp,
                          rets[0], rets[1], rets[2], rets[3], rets[4], rets[5], rets[6],
-                         rets[7], rets[8], rets[9], rets[10], rets[11], rets[12], rets[13], rets[14]))
+                         rets[7], rets[8], rets[9], rets[10], rets[11], rets[12], rets[13], rets[14],
+                         rets[15], rets[16], rets[17]))
     return picks
 
 def save_picks(picks):
@@ -140,8 +147,9 @@ def save_picks(picks):
         INSERT INTO daily_picks 
         (date, strategy_id, symbol, name, close_qfq, ma20, ma60, dist_ma20, vol_ratio, pct_20d,
          volume, avg_vol_20d, buy_price, ret_t1, ret_t2, ret_t3, ret_t5, ret_t10, ret_t15, ret_t20,
-         ret_t25, ret_t30, ret_t35, ret_t40, ret_t45, ret_t50, ret_t55, ret_t60)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ret_t25, ret_t30, ret_t35, ret_t40, ret_t45, ret_t50, ret_t55, ret_t60,
+         ret_t100, ret_t150, ret_t200)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, picks)
     
     by_dt_sid = defaultdict(list)
