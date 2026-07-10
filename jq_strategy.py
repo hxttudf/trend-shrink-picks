@@ -158,30 +158,30 @@ def trade(context):
             # 按策略优先级排序：超缩量 > 极品B
             g.candidates.sort(key=lambda x: 0 if x['strategy'] == '超缩量' else 1)
             
-            # 只取可用仓位数量的候选
+            # 买入新信号 — 有多少钱买多少钱
             to_buy = g.candidates[:available_slots]
-            
-            nav = context.portfolio.total_value
-            target_value = nav * g.position_pct
-            
+            target_value = context.portfolio.total_value * g.position_pct
             for c in to_buy:
                 stock = c['stock']
                 if stock in context.portfolio.positions and context.portfolio.positions[stock].total_amount > 0:
-                    continue  # 已持仓不重复买
-                
-                # 成交额过滤（避免流动性太差的）
+                    continue
+                    
+                # 成交额过滤
                 df = attribute_history(stock, 1, '1d', ['money'], df=True, skip_paused=True)
                 if df is not None and len(df) > 0:
                     turnover = df['money'].values[-1]
-                    if turnover < 5000000:  # 日成交额<500万跳过
+                    if turnover < 5000000:
                         log.info(f'  跳过[{stock}] {c["name"]} 成交额不足{turnover/10000:.0f}万')
                         continue
-                
-                order_target_value(stock, target_value)
-                g.hold_info[stock] = {'days': 0}
-                log.info(f'  买入[{stock}] {c["name"]} ({c["strategy"]}) '
-                        f'距MA20:{c["dist_ma20"]}% 量比:{c["vol_ratio"]} '
-                        f'20日涨幅:{c["pct_20d"]}% 仓位{target_value/10000:.1f}万')
+                    
+                # 能买多少买多少（可能小于target_value）
+                available = min(target_value, context.portfolio.available_cash)
+                if available > 1000:
+                    order_target_value(stock, available)
+                    g.hold_info[stock] = {'days': 0}
+                    log.info(f'  买入[{stock}] {c["name"]} ({c["strategy"]}) '
+                            f'仓位{available/10000:.2f}万(目标{target_value/10000:.1f}万) '
+                            f'距MA20:{c["dist_ma20"]}% 量比:{c["vol_ratio"]} 20日涨幅:{c["pct_20d"]}%')
     
     # 清空候选
     g.candidates = []
