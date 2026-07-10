@@ -161,7 +161,18 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
             p = pf[i]
             c = today_c.get(p['sym'])
             if c is None:
-                i += 1
+                # 无价格数据（K线超期）→ 以最后已知价强制卖出
+                last_p = p.get('lp', p['bp'])
+                if last_p and last_p > 0:
+                    ev = p['ev'] * (last_p / p['bp']) if p['bp'] > 0 else p['ev']
+                    ret = (last_p / p['bp'] - 1) * 100 if p['bp'] > 0 else 0
+                    cash += ev
+                    trades.append({
+                        'n': p['n'], 's': p['sym'],
+                        'ret': round(ret, 1), 'pnl': round(ev - p['ev'], 2),
+                        'buy': p['d'], 'sell': cur_date, 'hc': p.get('hc', 0)
+                    })
+                pf.pop(i)
                 continue
             p['hc'] = p.get('hc', 0) + 1
             
@@ -656,6 +667,8 @@ elif tab_mode == "回测":
                 .pname {font-weight:bold;}
                 .ppos {color:#e74c3c;}
                 .pneg {color:#27ae60;}
+                .mpos {color:#e74c3c;font-weight:bold;}
+                .mneg {color:#27ae60;font-weight:bold;}
                 </style>
             """
             st.markdown(pnl_style, unsafe_allow_html=True)
@@ -672,6 +685,12 @@ elif tab_mode == "回测":
                 unsafe_allow_html=True
             )
             
+            # Build monthly P&L totals
+            monthly_pnl = {}
+            for ym, days in cal_data.items():
+                total = sum(v['pnl'] for v in days.values() if v is not None and isinstance(v, dict))
+                monthly_pnl[ym] = total
+            
             for ym in sorted(cal_data.keys()):
                 days = cal_data[ym]
                 first = datetime.strptime(ym + '-01', '%Y-%m-%d')
@@ -686,7 +705,11 @@ elif tab_mode == "回测":
                 else:
                     md = 30
                 
-                st.markdown(f'<b style="font-size:13px;">{ym}</b>', unsafe_allow_html=True)
+                mpnl = monthly_pnl.get(ym, 0)
+                mpnl_cls = 'mpos' if mpnl >= 0 else 'mneg'
+                st.markdown(f'<b style="font-size:13px;">{ym}</b> '
+                          f'<span class="{mpnl_cls}" style="font-size:12px;">{mpnl:+.0f}元</span>', 
+                          unsafe_allow_html=True)
                 
                 html = '<table class="cal-table"><tr><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th></tr><tr>'
                 for _ in range(fw):
