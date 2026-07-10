@@ -606,7 +606,7 @@ elif tab_mode == "回测":
             
             # ├─ 盈亏日历 ──
             st.divider()
-            st.subheader("🗓 盈亏日历（鼠标悬停查看持仓明细）")
+            st.subheader("🗓 盈亏日历（累计，鼠标悬停查看明细）")
             
             # Build position lookup by date
             pos_by_date = {}
@@ -615,10 +615,12 @@ elif tab_mode == "回测":
                     pos_by_date[d['d']] = d['pos']
             
             cal_data = defaultdict(dict)
+            cum_pnl = 0
             for d in result['daily_log']:
                 ym = d['d'][:7]
                 day = int(d['d'][8:10])
-                cal_data[ym][day] = {'pnl': d['pnl'], 'date': d['d'], 'pos': d['pos']}
+                cum_pnl += d['pnl']
+                cal_data[ym][day] = {'pnl': d['pnl'], 'cum': cum_pnl, 'date': d['d'], 'pos': d['pos']}
             
             pnl_style = """
                 <style>
@@ -685,19 +687,20 @@ elif tab_mode == "回测":
                         html += '<td><span class="cal-day">{}</span></td>'.format(day)
                     else:
                         pnl = cell['pnl']
+                        cum = cell['cum']
                         date_str = cell['date']
                         pos_list = cell['pos']
                         
-                        if pnl > 5000: cls = 'pnl-big-pos'
-                        elif pnl > 1000: cls = 'pnl-pos'
-                        elif pnl > 0: cls = 'pnl-small-pos'
-                        elif pnl == 0: cls = 'pnl-zero'
-                        elif pnl > -1000: cls = 'pnl-small-neg'
-                        elif pnl > -5000: cls = 'pnl-neg'
+                        if cum > 5000: cls = 'pnl-big-pos'
+                        elif cum > 1000: cls = 'pnl-pos'
+                        elif cum > 0: cls = 'pnl-small-pos'
+                        elif cum == 0: cls = 'pnl-zero'
+                        elif cum > -1000: cls = 'pnl-small-neg'
+                        elif cum > -5000: cls = 'pnl-neg'
                         else: cls = 'pnl-big-neg'
                         
                         # Build tooltip
-                        tip_lines = [f'{date_str} 盈亏: {pnl:+.0f}元']
+                        tip_lines = [f'{date_str} 累计{cum:+.0f}元 | 当日{pnl:+.0f}元']
                         if pos_list:
                             tip_lines.append('──持仓──')
                             for p in pos_list[:6]:  # max 6 positions
@@ -707,7 +710,7 @@ elif tab_mode == "回测":
                                 tip_lines.append(f'...还有{len(pos_list)-6}只')
                         
                         tip_html = '<br>'.join(tip_lines)
-                        amt = f'{pnl:+.0f}'
+                        amt = f'{cum:+.0f}'
                         
                         html += f'<td class="{cls}">'
                         html += f'<span class="cal-amount">{amt}</span>'
