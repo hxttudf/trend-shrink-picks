@@ -74,19 +74,23 @@ def screen_stocks(context):
             s = '极品B' if cond_b else '超缩量'
             candidates.append({'stock':stock,'name':name,'strategy':s,
                                'd':round(dist_ma20,1),'vr':round(vol_ratio,2),
-                               'p20':round(pct_20d,1),'c':today_c})
+                               'p20':round(pct_20d,1),'c':round(today_c,2),'ma20':round(ma20,2)})
         elif stock in DEBUG_STOCKS:
             fail = []
             if not (g.pb['dl'] <= dist_ma20 < g.pb['dh']): fail.append(f'距MA20({dist_ma20:.1f}%)')
             if not (vol_ratio < g.pb['vr']): fail.append(f'量比({vol_ratio:.2f})')
             if not (g.pb['pl'] <= pct_20d < g.pb['ph']): fail.append(f'20日涨幅({pct_20d:.1f}%)')
             if not (today_c > ma20 > ma60): fail.append(f'MA排列')
-            log.info(f'  [DEBUG]{stock} {get_security_info(stock).display_name} 未命中: {", ".join(fail)}')
+            log.info(f'  [DEBUG]{stock} {get_security_info(stock).display_name} '
+                     f'收盘{round(today_c,2)} MA20{round(ma20,2)} MA60{round(ma60,2)} '
+                     f'距MA20{dist_ma20:.1f}% 量比{vol_ratio:.2f} 20日涨幅{pct_20d:.1f}% '
+                     f'未命中: {", ".join(fail)}')
     
     g.candidates = candidates
     log.info(f'[{today}] 选股: 主板{passed_board}→数据够{passed_data}→命中{len(candidates)}')
     for c in candidates:
         log.info(f'  +{c["stock"]} {c["name"]} ({c["strategy"]}) '
+                 f'收盘{c["c"]} MA20{c["ma20"]} '
                  f'MA20距离{c["d"]}% 量比{c["vr"]} 20日涨幅{c["p20"]}%')
 
 def trade(context):
