@@ -40,6 +40,7 @@ def list_picks(date_str=None, strategy=None, top=20):
 
 def stats():
     conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
     rows = conn.execute("""
         SELECT s.name, 
                COUNT(*) as cnt,
