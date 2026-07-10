@@ -9,6 +9,7 @@ def initialize(context):
     g.position_pct = 0.25
     g.hold_days = 20
     g.hold_info = {}
+    g.candidates = []
     g.log_debug = True  # 改False可关掉详细日志
     
     # 极品B
