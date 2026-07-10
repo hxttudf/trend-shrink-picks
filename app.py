@@ -360,6 +360,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+REPORT_FILES = {
+    "方案A：极品B+超缩量 (CAGR 84.7%)": "回测报告_NAV25%.html",
+    "方案B：极品A+B+超缩量 (CAGR 75.7%)": "回测报告_三策略合并.html",
+}
+
 # 侧边栏
 with st.sidebar:
     st.title("📊 趋势缩量选股")
@@ -367,7 +372,7 @@ with st.sidebar:
     
     min_date, max_date = get_date_range()
     
-    tab_mode = st.radio("功能", ["回测", "今日信号", "信号查询"])
+    tab_mode = st.radio("功能", ["🏠 首页", "回测", "今日信号", "信号查询"])
     
     if tab_mode == "回测":
         st.divider()
@@ -400,7 +405,30 @@ with st.sidebar:
         run_btn = st.button("🚀 运行回测", type="primary", use_container_width=True)
 
 # 主页面
-if tab_mode == "今日信号":
+if tab_mode == "🏠 首页":
+    st.header("📊 趋势缩量选股")
+    st.caption("策略：原版 | 极品A | 极品B | 超缩量 &nbsp;&nbsp;·&nbsp;&nbsp; 仓位：NAV25%/只×上限4只 &nbsp;&nbsp;·&nbsp;&nbsp; 持有20天续期")
+    
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.info("**🚀 交互式回测**\n\n任意时间段 · 策略组合勾选 · 图表+交易明细")
+    with col2:
+        st.info("**📡 今日信号查询**\n\n查看当天选股结果 · 按策略分布")
+    
+    st.divider()
+    st.subheader("📁 历史静态报告")
+    st.caption("先前的离线回测结果，仅供参考")
+    
+    for label, fname in REPORT_FILES.items():
+        try:
+            with open(fname, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            with st.expander(f"📄 {label}"):
+                st.components.v1.html(html_content, height=800, scrolling=True)
+        except:
+            st.warning(f"{label} 文件不可用")
+
+elif tab_mode == "今日信号":
     st.header("📡 今日信号")
     signals = get_today_signals()
     if signals:
