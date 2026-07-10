@@ -3,7 +3,7 @@
 # 标的：沪深主板
 # 买入：信号日次日开盘 | 卖出：持有20个交易日后收盘
 
-DEBUG_STOCKS = ('000892','002989','000811','605028','000608','603813')
+DEBUG_STOCKS = ('000892.XSHE','002989.XSHE','000811.XSHE','605028.XSHG','000608.XSHE','603813.XSHG')
 
 def initialize(context):
     g.max_positions = 4
