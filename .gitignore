@@ -1,8 +1,10 @@
+# Generated report files
+report_images/
+回测报告_*.html
+*.pdf
+
+# IDE
+.vscode/
 __pycache__/
 *.pyc
-*.db
-data/*.db
-logs/
-.venv/
-venv/
 .DS_Store
