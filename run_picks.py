@@ -147,10 +147,14 @@ def save_picks(picks):
     out.executemany("""
         INSERT INTO daily_picks 
         (date, strategy_id, symbol, name, close_qfq, ma20, ma60, dist_ma20, vol_ratio, pct_20d,
-         volume, avg_vol_20d, buy_price, ret_t1, ret_t2, ret_t3, ret_t5, ret_t10, ret_t15, ret_t20,
+         volume, avg_vol_20d, buy_price,
+         ret_t1, ret_t2, ret_t3, ret_t5, ret_t10, ret_t15, ret_t20,
          ret_t25, ret_t30, ret_t35, ret_t40, ret_t45, ret_t50, ret_t55, ret_t60,
          ret_70, ret_80, ret_90, ret_100, ret_110, ret_120, ret_150, ret_200)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,?)
     """, picks)
     
     by_dt_sid = defaultdict(list)
