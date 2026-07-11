@@ -8,3 +8,6 @@ report_images/
 __pycache__/
 *.pyc
 .DS_Store
+*.db
+data/
+accounts.db

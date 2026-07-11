@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""每日多策略趋势选股 — 每个策略独立MA60配置"""
+"""每日极品B策略选股 — 缩量调整后T+1开盘买入，持20日"""
 import sqlite3, json, sys, os
 from datetime import date, datetime
 from collections import defaultdict
@@ -11,10 +11,7 @@ SRC_DB = "/home/ubuntu/databases/Sequoia选股.db"
 OUT_DB = "/home/ubuntu/databases/trend_picks.db"
 
 STRATEGIES = {
-    'original':     {'dl':10,'dh':20,'vl':0,'vh':0.3,'pl':5,'ph':25, 'ma60':False},
-    'premium_a':    {'dl':12,'dh':25,'vl':0.1,'vh':0.3,'pl':3,'ph':15, 'ma60':True},
     'premium_b':    {'dl':12,'dh':25,'vl':0,'vh':0.3,'pl':3,'ph':15, 'ma60':True},
-    'ultra_shrink': {'dl':10,'dh':20,'vl':0,'vh':0.15,'pl':3,'ph':15, 'ma60':True},
 }
 
 def log(msg):

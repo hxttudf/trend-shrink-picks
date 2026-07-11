@@ -106,13 +106,27 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
     def get_kl(sig):
         bd = datetime.strptime(sig['d'], '%Y-%m-%d')
         fetch_end = (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=60)).strftime('%Y-%m-%d')
+        # 多取1天用于计算信号日涨跌幅
+        start = (bd - timedelta(days=7)).strftime('%Y-%m-%d')
         rows = cs.execute(
             "SELECT date, close_qfq FROM stock_daily WHERE symbol=? AND date>=? AND date<=? ORDER BY date",
-            (sig['s'], bd.strftime('%Y-%m-%d'), fetch_end)
+            (sig['s'], start, fetch_end)
         ).fetchall()
-        if not rows or len(rows) < 3 or not sig['bp'] or sig['bp'] <= 0:
+        if not rows or len(rows) < 4 or not sig['bp'] or sig['bp'] <= 0:
             return None
-        return [{'d': r[0], 'c': r[1]} for r in rows if r[1] and r[1] > 0]
+        
+        # 找信号日及前一日，检查是否涨停
+        sig_idx = next((i for i, r in enumerate(rows) if r[0] >= sig['d']), None)
+        if sig_idx is None or sig_idx < 1:
+            return None
+        prev_c = rows[sig_idx - 1][1]
+        sig_c = rows[sig_idx][1]
+        daily_ret = (sig_c / prev_c - 1) * 100 if prev_c > 0 else 0
+        
+        return {
+            'data': [{'d': r[0], 'c': r[1]} for r in rows[sig_idx:] if r[1] and r[1] > 0],
+            'limit_up': daily_ret >= 9.5
+        }
     
     items = []
     pc = defaultdict(lambda: {})
@@ -120,9 +134,14 @@ def run_backtest(strategy_names, start_date, end_date, initial_capital=200000):
     
     for sig in signals:
         k = get_kl(sig)
-        if k:
-            items.append({'sig': sig, 'kl': k})
-            for x in k:
+        if not k:
+            continue
+        if k['limit_up']:
+            continue  # 涨停跳过
+        data = k['data']
+        if data:
+            items.append({'sig': sig, 'kl': data})
+            for x in data:
                 ads.add(x['d'])
                 pc[sig['s']][x['d']] = x['c']
     

@@ -103,7 +103,7 @@ def process_signals(conn_trade, conn_trend, conn_sequoia, today):
     """处理新信号"""
     # 查询当天的极品B信号（去重）
     signals = conn_trend.execute("""
-        SELECT DISTINCT dp.symbol, dp.name, dp.close_qfq, dp.date
+        SELECT DISTINCT dp.symbol, dp.name, dp.buy_price, dp.date
         FROM daily_picks dp
         JOIN strategies s ON dp.strategy_id = s.id
         WHERE s.name = '极品B' AND dp.date = ?
@@ -163,7 +163,7 @@ def execute_buys(conn_trade, conn_sequoia, buy_signals, today):
             print(f"  ⚠ 无法找到买入日（{today}之后无交易日）")
             continue
         
-        # 买入价 = 信号日的close_qfq（近似次日开盘）
+        # 买入价 = daily_picks的buy_price（T+1调整开盘价）
         buy_price = price
         if not buy_price or buy_price <= 0:
             print(f"  ⚠ {sym} {name} 买入价异常: {buy_price}")
