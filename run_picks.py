@@ -11,7 +11,11 @@ SRC_DB = "/home/ubuntu/databases/Sequoia选股.db"
 OUT_DB = "/home/ubuntu/databases/trend_picks.db"
 
 STRATEGIES = {
+    'original':     {'dl':10,'dh':20,'vl':0,'vh':0.3,'pl':5,'ph':25, 'ma60':False},
+    'premium_a':    {'dl':12,'dh':25,'vl':0.1,'vh':0.3,'pl':3,'ph':15, 'ma60':True},
     'premium_b':    {'dl':12,'dh':25,'vl':0,'vh':0.3,'pl':3,'ph':15, 'ma60':True},
+    'ultra_shrink': {'dl':10,'dh':20,'vl':0,'vh':0.15,'pl':3,'ph':15, 'ma60':True},
+    'premium_b2':   {'dl':12,'dh':25,'vl':0,'vh':0.5,'pl':3,'ph':15, 'ma60':True},
 }
 
 def log(msg):
@@ -38,6 +42,7 @@ def run_picks(today_str):
         WITH base AS (
             SELECT symbol, date, close_qfq AS price, close AS close_raw, volume, turnover, open
             FROM stock_daily WHERE close_qfq > 0
+              AND date >= date('{today_str}', '-120 days')
         ),
         mavgs AS (
             SELECT symbol, date, price, close_raw, volume, turnover, open,
