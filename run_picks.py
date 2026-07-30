@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """每日极品B策略选股 — 缩量调整后T+1开盘买入，持20日"""
-import sqlite3, json, sys, os
+import sqlite3, sys, os
 from datetime import date, datetime
 from collections import defaultdict
 
@@ -19,7 +19,7 @@ STRATEGIES = {
 }
 
 def log(msg):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+    print(f"  {msg}", flush=True)
 
 def calc_ret(fp, bp):
     return round((fp/bp - 1)*100, 2) if fp and bp and bp > 0 else None
@@ -173,20 +173,21 @@ def save_picks(picks):
 
 def main():
     today_str = date.today().strftime("%Y-%m-%d")
-    log(f"=== 多策略趋势缩量选股 {today_str} ===")
+    print(f"【每日策略信号】{today_str}")
     picks = run_picks(today_str)
     if picks:
         save_picks(picks)
         by_sid = defaultdict(list)
         for p in picks:
             by_sid[p[1]].append(p)
+        print(f"  {'─'*30}")
         for sid, plist in sorted(by_sid.items()):
-            log(f"  {sid:>15}: {len(plist)}只")
-        log(f"总计: {len(picks)}信号")
+            print(f"  {sid:>15}: {len(plist)}只")
+        print(f"  {'─'*30}")
+        print(f"  合计: {len(picks)}只")
     else:
-        log("无信号")
+        print("  无信号")
     return {"date": today_str, "picks": len(picks) if picks else 0}
 
 if __name__ == "__main__":
     result = main()
-    print(json.dumps(result, ensure_ascii=False))

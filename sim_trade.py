@@ -285,13 +285,7 @@ def snapshot(conn_trade, conn_sequoia, today):
     return total, cum_return
 
 def print_summary(today, total, cum_return, cash):
-    print(f"\n{'='*60}")
-    print(f"  极品B模拟盘 | {today}")
-    print(f"{'='*60}")
-    print(f"  总资产: {total:>10.2f}")
-    print(f"  现金:   {cash:>10.2f}")
-    print(f"  累计收益: {cum_return:>+8.2f}%")
-    print(f"{'='*60}\n")
+    print(f"  总资产: {total:.2f}  |  现金: {cash:.2f}  |  累计收益: {cum_return:+.2f}%")
 
 def run():
     today = datetime.now().strftime('%Y-%m-%d')
