@@ -11,3 +11,4 @@ __pycache__/
 *.db
 data/
 accounts.db
+*.log
