@@ -16,6 +16,12 @@ BATCH = 300
 START = "2020-01-01"
 HOLD10, HOLD20, HOLD60 = 10, 20, 60
 TP, SL = 1.08, 0.95
+# 信号确认延迟(缠论: 分型需右侧K线确认) — 标准口径=严格版:
+# BUY_LAG=2 信号T+1确认, T+2开盘买入(真实可成交)
+# SELL_LAG=1 卖点信号次日收盘卖出
+# (旧版BUY_LAG=1/SELL_LAG=0为理想口径, 高估6~10pp, 已弃用)
+BUY_LAG = int(sys.argv[1]) if len(sys.argv) > 1 else 2
+SELL_LAG = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 
 
 def main():
@@ -68,10 +74,10 @@ def main():
 
             for typ, sdate in sig_per.get(sym, []):
                 bi = d2i.get(sdate)
-                if bi is None or bi + 1 >= len(bars):
+                if bi is None or bi + BUY_LAG >= len(bars):
                     n_skip += 1
                     continue
-                buy_i = bi + 1  # 次日开盘
+                buy_i = bi + BUY_LAG  # 次日开盘(1) / 确认后次日开盘(2)
                 buy_p = qfq_open[buy_i]
                 if buy_p <= 0:
                     continue
@@ -100,13 +106,13 @@ def main():
                         break
                 if rtp is None and buy_i + HOLD20 - 1 < len(bars):
                     rtp = qfq_close[buy_i + HOLD20 - 1] / buy_p - 1
-                # symsell: 后续最近卖点信号收盘卖
+                # symsell: 后续最近卖点信号收盘卖(SELL_LAG=0信号日/1次日)
                 rsym = None
                 for sd in sell_dates:
                     if sd > sdate:
                         si = d2i.get(sd)
-                        if si is not None and si > buy_i:
-                            rsym = qfq_close[si] / buy_p - 1
+                        if si is not None and si + SELL_LAG < len(bars) and si + SELL_LAG > buy_i:
+                            rsym = qfq_close[si + SELL_LAG] / buy_p - 1
                             break
                 if rsym is None and r60 is not None:
                     rsym = r60

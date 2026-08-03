@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""二三买重合信号回测(新算法·时效/幅度约束版)
+"""二三买重合信号回测(标准严格口径)
 重合 = 同股同日同时有二买+三买 (缠论最强买点)
-买入: 次日开盘(qfq) | 卖出: T+10/T+20/对称卖点(后续首个卖点信号)"""
+口径: 信号T+1确认 → T+2开盘买入(qfq); 卖点信号次日收盘卖出; 对称卖点=T+60兜底"""
 import sqlite3
 
 SEQ_DB = "/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db"
@@ -40,9 +40,9 @@ def main():
             continue
         d2i = {r[1]: i for i, r in enumerate(bars)}
         bi = d2i.get(sdate)
-        if bi is None or bi + 1 >= len(bars):
+        if bi is None or bi + 2 >= len(bars):
             continue
-        buy_i = bi + 1
+        buy_i = bi + 2  # 信号T+1确认, T+2开盘买入(标准口径)
         buy_p = bars[buy_i][2] * (bars[buy_i][4] / bars[buy_i][3])  # open_qfq
         if buy_p <= 0:
             continue
@@ -54,7 +54,7 @@ def main():
         for sd in sell_sigs.get(sym, []):
             si = d2i.get(sd)
             if si is not None and si > buy_i:
-                sold = (bars[si][4] / buy_p - 1, si - buy_i)
+                sold = (bars[si + 1][4] / buy_p - 1, si + 1 - buy_i)  # 卖点次日收盘(标准口径)
                 break
         if sold is None:
             if buy_i + 60 >= len(bars):
@@ -70,7 +70,7 @@ def main():
         avg = sum(arr) / n * 100
         print(f"  {name}: n={n} 胜率{win:.1f}% 均收益{avg:+.2f}%")
 
-    print(f"\n── 重合信号回测(次日开盘买入) ──")
+    print(f"\n── 重合信号回测(严格口径: T+2开盘买入) ──")
     stat("T+10", res10)
     stat("T+20", res20)
     stat("对称卖点", res_sym)
@@ -92,9 +92,9 @@ def main():
                 continue
             d2i = {r[1]: i for i, r in enumerate(bars)}
             bi = d2i.get(sdate)
-            if bi is None or bi + 1 >= len(bars):
+            if bi is None or bi + 2 >= len(bars):
                 continue
-            buy_i = bi + 1
+            buy_i = bi + 2  # 信号T+1确认, T+2开盘买入(标准口径)
             buy_p = bars[buy_i][2] * (bars[buy_i][4] / bars[buy_i][3])
             if buy_p <= 0:
                 continue
@@ -102,7 +102,7 @@ def main():
             for sd in sell_sigs.get(sym, []):
                 si = d2i.get(sd)
                 if si is not None and si > buy_i:
-                    sold = bars[si][4] / buy_p - 1
+                    sold = bars[si + 1][4] / buy_p - 1  # 标准口径
                     break
             if sold is None:
                 if buy_i + 60 >= len(bars):
