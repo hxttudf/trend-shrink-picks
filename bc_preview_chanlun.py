@@ -52,7 +52,11 @@ def main():
         print("无盘中数据, 先跑 bc_preview_data.py")
         return
     TODAY = pd[0]
-    print(f"预览日: {TODAY}", flush=True)
+    # 全市场统一的未确认窗口: 今天 + 上一交易日
+    prev_day = seq.execute(
+        "SELECT MAX(date) FROM stock_daily WHERE date<?", (TODAY,)).fetchone()[0]
+    UNCONFIRMED = {TODAY, prev_day}
+    print(f"预览日: {TODAY} (未确认窗口: {prev_day},{TODAY})", flush=True)
     syms = [r[0] for r in seq.execute(
         "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2019-01-01'").fetchall()]
     names = {}
@@ -121,8 +125,10 @@ def main():
             cur = []
             for typ, d, p, zd, zg in sigs:
                 if d in wd:
-                    # 预览口径: 最后2个交易日(今+昨)未确认=preview, 更早已T+1确认=ok
-                    st = 'preview' if d >= qf[-2][0] else 'ok'
+                    # 只写未确认窗口(全市场最后2个交易日: 今+昨), 更早的已确认信号由正式表提供
+                    if d not in UNCONFIRMED:
+                        continue
+                    st = 'preview'
                     # D3标记(二买+老高5条件) / W30标记(买点+worth后30天内)
                     f_d3 = 0
                     f_w30 = 0
@@ -160,14 +166,16 @@ def main():
     seq.close()
     parts = " ".join(f"{k}{v}" for k, v in sorted(by_type.items()))
     print(f"预览信号: {total}条 ({parts}) 耗时{time.time()-t0:.0f}s")
-    # 上一交易日(正式表即将写入的) + 今日(新形成) 分开列
+    # 未确认窗口(最后2个交易日)信号 + 今日新信号 分开列
     pconn = sqlite3.connect(PICKS_DB)
     prev_sigs = pconn.execute(
         "SELECT symbol, name, signal_type, price FROM preview_signals "
-        "WHERE signal_date=(SELECT MAX(signal_date) FROM preview_signals WHERE status='preview' AND signal_date<?) "
-        "AND status='preview' ORDER BY signal_type, symbol", (TODAY,)).fetchall()
+        "WHERE status='preview' ORDER BY signal_type, symbol").fetchall()
+    prev_dates = pconn.execute(
+        "SELECT DISTINCT signal_date FROM preview_signals WHERE status='preview' ORDER BY signal_date").fetchall()
     pconn.close()
-    print(f"===== 上一交易日预览信号 {len(prev_sigs)}条 (未确认, 收盘后写入正式表) =====")
+    ds = ",".join(r[0] for r in prev_dates)
+    print(f"===== 未确认窗口({ds})预览信号 {len(prev_sigs)}条 (未确认, 收盘后写入正式表) =====")
     for sym, nm, typ, p in prev_sigs[:20]:
         print(f"  {sym} {nm} {typ} @{p:.2f}")
     if len(prev_sigs) > 20:
