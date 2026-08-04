@@ -44,6 +44,46 @@ def laogao_conds(closes, vols, i):
     return (cur > ma20 > ma60, 2 <= dist <= 15, (i - li) >= 120, ma20 > ma20_5, r7)
 
 
+def calc_strength(typ, zd, zg, closes, vols, i):
+    """强度评分(回测最优参数): 强=放量1.5x+深度超跌20%/远离中枢5%; 弱=极度缩量0.6x/贴中枢3%"""
+    if i < 20 or i >= len(closes):
+        return 'neutral'
+    c0 = closes[i]
+    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
+    vr = vols[i] / avg if avg else 0
+    if typ == '三买' and zg and zg > 0:
+        brk = (c0 - zg) / zg * 100
+        if brk > 5 and vr > 1.5:
+            return 'strong'
+        if brk < 3:
+            return 'weak'
+        return 'neutral'
+    if typ in ('一买', '二买'):
+        c10 = closes[i - 10]
+        drop10 = (c0 - c10) / c10 * 100 if c10 else 0
+        if drop10 < -20:
+            return 'strong'
+        if vr < 0.6 and drop10 > -20:
+            return 'weak'
+        return 'neutral'
+    if typ == '三卖' and zd and zd > 0:
+        brk = (zd - c0) / zd * 100
+        if brk > 5 and vr > 1.5:
+            return 'strong'
+        if brk < 3:
+            return 'weak'
+        return 'neutral'
+    if typ in ('一卖', '二卖'):
+        c10 = closes[i - 10]
+        rise10 = (c0 - c10) / c10 * 100 if c10 else 0
+        if rise10 > 20:
+            return 'strong'
+        if vr < 0.6 and rise10 < 20:
+            return 'weak'
+        return 'neutral'
+    return 'neutral'
+
+
 def main():
     t0 = time.time()
     seq = sqlite3.connect(SEQ_DB)
@@ -68,7 +108,7 @@ def main():
     picks.execute("""CREATE TABLE preview_signals(
         symbol TEXT NOT NULL, name TEXT, signal_type TEXT NOT NULL, signal_date TEXT NOT NULL,
         price REAL, ref_zd REAL, ref_zg REAL, status TEXT DEFAULT 'preview',
-        d3 INTEGER DEFAULT 0, w30 INTEGER DEFAULT 0,
+        d3 INTEGER DEFAULT 0, w30 INTEGER DEFAULT 0, strength TEXT DEFAULT 'neutral',
         ts TEXT DEFAULT (datetime('now','localtime')))""")
     picks.execute("CREATE INDEX idx_ps_date ON preview_signals(signal_date)")
     # worth映射(W30用)
@@ -129,13 +169,16 @@ def main():
                     if d not in UNCONFIRMED:
                         continue
                     st = 'preview'
-                    # D3标记(二买+老高5条件) / W30标记(买点+worth后30天内)
+                    # D3标记(二买+老高5条件) / W30标记(买点+worth后30天内) / 强度评分
                     f_d3 = 0
                     f_w30 = 0
+                    f_str = 'neutral'
                     try:
                         di = next(i for i, r in enumerate(qf) if r[0] == d)
+                        closes_qf = [r[3] for r in qf]
+                        f_str = calc_strength(typ, zd, zg, closes_qf, vols, di)
                         if typ == '二买':
-                            c = laogao_conds([r[3] for r in qf], vols, di)
+                            c = laogao_conds(closes_qf, vols, di)
                             if c and c[0] and c[1] and c[2] and c[3] and c[4]:
                                 f_d3 = 1
                         if '买' in typ:
@@ -147,15 +190,15 @@ def main():
                                     break
                     except Exception:
                         pass
-                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30))
+                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str))
                     by_type[typ] = by_type.get(typ, 0) + 1
                     if d == TODAY:
                         today_sigs.append((sym, nm, typ, d, p))
             if cur:
                 picks.executemany(
                     "INSERT INTO preview_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
