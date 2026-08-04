@@ -9,7 +9,7 @@ from datetime import date
 
 TREND_DB = "/home/ubuntu/databases/trend_picks.db"
 SEQ_DB = "/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db"
-WIN = int(sys.argv[1]) if len(sys.argv) > 1 else 40  # 回溯窗口(天)
+WIN = int(sys.argv[1]) if len(sys.argv) > 1 else 90  # 回溯窗口(天)
 
 
 def laogao_conds(closes, vols, i):
