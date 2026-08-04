@@ -77,6 +77,30 @@ def calc_strength(typ, zd, zg, closes, vols, i):
     return 'neutral'
 
 
+def calc_score(typ, zd, zg, closes, vols, i):
+    """连续强度分(0-100): 50基准 + 量能±20 + 形态±25 (回测验证: 买点单调/卖点70+显著)"""
+    if i < 20 or i >= len(closes):
+        return 50.0
+    c0 = closes[i]
+    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
+    vr = vols[i] / avg if avg else 0
+    s = 50.0
+    s += max(-20.0, min(20.0, (vr - 1) * 15))
+    if typ in ('三买', '三卖'):
+        zz = zg if typ == '三买' else zd
+        if zz and zz > 0:
+            brk = (c0 - zg) / zg * 100 if typ == '三买' else (zd - c0) / zd * 100
+            s += max(-25.0, min(25.0, brk * 1.5))
+    else:
+        c10 = closes[i - 10]
+        chg = (c0 - c10) / c10 * 100 if c10 else 0
+        if typ in ('一买', '二买'):
+            s += max(-25.0, min(25.0, -chg * 0.8))
+        else:
+            s += max(-25.0, min(25.0, chg * 0.8))
+    return round(max(0.0, min(100.0, s)), 1)
+
+
 def main():
     t0 = time.time()
     picks = sqlite3.connect(TREND_DB)
@@ -118,8 +142,9 @@ def main():
             continue
         # 强度评分(全部信号)
         st = calc_strength(typ, zd, zg, closes, vols, idx)
-        picks.execute("UPDATE chanlun_signals SET strength=? WHERE symbol=? AND signal_date=? AND signal_type=?",
-                      (st, sym, sdate, typ))
+        sc = calc_score(typ, zd, zg, closes, vols, idx)
+        picks.execute("UPDATE chanlun_signals SET strength=?, strength_score=? WHERE symbol=? AND signal_date=? AND signal_type=?",
+                      (st, sc, sym, sdate, typ))
         n_str[st] += 1
         f_d3 = f_w30 = 0
         if typ == '二买':

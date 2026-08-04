@@ -84,6 +84,30 @@ def calc_strength(typ, zd, zg, closes, vols, i):
     return 'neutral'
 
 
+def calc_score(typ, zd, zg, closes, vols, i):
+    """连续强度分(0-100): 50基准 + 量能±20 + 形态±25 (回测验证: 买点单调/卖点70+显著)"""
+    if i < 20 or i >= len(closes):
+        return 50.0
+    c0 = closes[i]
+    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
+    vr = vols[i] / avg if avg else 0
+    s = 50.0
+    s += max(-20.0, min(20.0, (vr - 1) * 15))
+    if typ in ('三买', '三卖'):
+        zz = zg if typ == '三买' else zd
+        if zz and zz > 0:
+            brk = (c0 - zg) / zg * 100 if typ == '三买' else (zd - c0) / zd * 100
+            s += max(-25.0, min(25.0, brk * 1.5))
+    else:
+        c10 = closes[i - 10]
+        chg = (c0 - c10) / c10 * 100 if c10 else 0
+        if typ in ('一买', '二买'):
+            s += max(-25.0, min(25.0, -chg * 0.8))
+        else:
+            s += max(-25.0, min(25.0, chg * 0.8))
+    return round(max(0.0, min(100.0, s)), 1)
+
+
 def main():
     t0 = time.time()
     seq = sqlite3.connect(SEQ_DB)
@@ -173,10 +197,12 @@ def main():
                     f_d3 = 0
                     f_w30 = 0
                     f_str = 'neutral'
+                    f_score = 50
                     try:
                         di = next(i for i, r in enumerate(qf) if r[0] == d)
                         closes_qf = [r[3] for r in qf]
                         f_str = calc_strength(typ, zd, zg, closes_qf, vols, di)
+                        f_score = calc_score(typ, zd, zg, closes_qf, vols, di)
                         if typ == '二买':
                             c = laogao_conds(closes_qf, vols, di)
                             if c and c[0] and c[1] and c[2] and c[3] and c[4]:
@@ -190,15 +216,15 @@ def main():
                                     break
                     except Exception:
                         pass
-                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str))
+                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score))
                     by_type[typ] = by_type.get(typ, 0) + 1
                     if d == TODAY:
                         today_sigs.append((sym, nm, typ, d, p))
             if cur:
                 picks.executemany(
                     "INSERT INTO preview_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
