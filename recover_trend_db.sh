@@ -20,7 +20,17 @@ dst.execute('''CREATE TABLE IF NOT EXISTS daily_picks (
     symbol TEXT NOT NULL, name TEXT DEFAULT '', close_qfq REAL, ma20 REAL, ma60 REAL,
     dist_ma20 REAL, vol_ratio REAL, pct_20d REAL, volume REAL, avg_vol_20d REAL,
     buy_price REAL, created_at TEXT DEFAULT (datetime('now','+8 hours')),
+    ret_t1 REAL, ret_t2 REAL, ret_t3 REAL, ret_t5 REAL, ret_t10 REAL, ret_t15 REAL,
+    ret_t20 REAL, ret_t25 REAL, ret_t30 REAL, ret_t35 REAL, ret_t40 REAL, ret_t45 REAL,
+    ret_t50 REAL, ret_t55 REAL, ret_t60 REAL, ret_70 REAL, ret_80 REAL, ret_90 REAL,
+    ret_100 REAL, ret_110 REAL, ret_120 REAL, ret_150 REAL, ret_200 REAL,
     UNIQUE(date, strategy_id, symbol))''')
+# 策略表/汇总表(run_picks/query_picks/sim_trade依赖, 之前缺失导致cron失败)
+dst.execute("CREATE TABLE IF NOT EXISTS strategies(id TEXT PRIMARY KEY, name TEXT)")
+dst.executemany("INSERT OR REPLACE INTO strategies VALUES (?,?)",
+                [('original', '原始'), ('premium_a', 'A'), ('premium_b', 'B'),
+                 ('premium_b2', 'B2'), ('ultra_shrink', '极致缩量')])
+dst.execute("CREATE TABLE IF NOT EXISTS daily_summary(date TEXT, strategy_id TEXT, pick_count INTEGER, symbols TEXT, PRIMARY KEY(date, strategy_id))")
 rows = src.execute('SELECT date, strategy_id, symbol, name, close_qfq, ma20, ma60, dist_ma20, vol_ratio, pct_20d, volume, avg_vol_20d, buy_price FROM daily_picks').fetchall()
 dst.executemany('INSERT OR REPLACE INTO daily_picks (date, strategy_id, symbol, name, close_qfq, ma20, ma60, dist_ma20, vol_ratio, pct_20d, volume, avg_vol_20d, buy_price) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
 dst.commit()
