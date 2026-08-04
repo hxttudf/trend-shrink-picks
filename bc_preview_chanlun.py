@@ -19,6 +19,31 @@ WINDOW = int(sys.argv[1]) if len(sys.argv) > 1 else 7
 MIN_BARS = 150
 
 
+def laogao_conds(closes, vols, i):
+    """老高5条件(D3): 均线多头/回踩2-15/底部120/均线上翘/放量启动"""
+    if i < 60:
+        return None
+    cur = closes[i]
+    ma20 = sum(closes[i - 19:i + 1]) / 20
+    ma60 = sum(closes[i - 59:i + 1]) / 60
+    ma20_5 = sum(closes[i - 24:i - 4]) / 20
+    if ma60 <= 0:
+        return None
+    dist = (cur - ma20) / ma20 * 100
+    lo = min(closes[max(0, i - 249):i + 1])
+    li = closes[max(0, i - 249):i + 1].index(lo) + max(0, i - 249)
+    r7 = False
+    for k in range(1, 11):
+        if i - k < 1:
+            break
+        chg = (closes[i - k] / closes[i - k - 1] - 1) * 100
+        a = sum(vols[max(0, i - k - 20):i - k]) / min(20, i - k) if i - k > 0 else 1
+        if chg >= 3 and (vols[i - k] / a if a else 0) >= 1.5:
+            r7 = True
+            break
+    return (cur > ma20 > ma60, 2 <= dist <= 15, (i - li) >= 120, ma20 > ma20_5, r7)
+
+
 def main():
     t0 = time.time()
     seq = sqlite3.connect(SEQ_DB)
@@ -39,8 +64,14 @@ def main():
     picks.execute("""CREATE TABLE preview_signals(
         symbol TEXT NOT NULL, name TEXT, signal_type TEXT NOT NULL, signal_date TEXT NOT NULL,
         price REAL, ref_zd REAL, ref_zg REAL, status TEXT DEFAULT 'preview',
+        d3 INTEGER DEFAULT 0, w30 INTEGER DEFAULT 0,
         ts TEXT DEFAULT (datetime('now','localtime')))""")
     picks.execute("CREATE INDEX idx_ps_date ON preview_signals(signal_date)")
+    # worth映射(W30用)
+    worth = {}
+    for r in picks.execute("SELECT date, symbol FROM bottom_confirm_picks WHERE status='worth'").fetchall():
+        worth.setdefault(r[1], []).append(r[0])
+    import datetime
 
     total = 0
     by_type = {}
@@ -48,11 +79,11 @@ def main():
     for batch_i in range(0, len(syms), BATCH):
         batch = syms[batch_i:batch_i + BATCH]
         rows = seq.execute(
-            "SELECT symbol, date, high, low, close, close_qfq FROM stock_daily "
+            "SELECT symbol, date, high, low, close, close_qfq, volume FROM stock_daily "
             f"WHERE symbol IN ({','.join('?' * len(batch))}) AND close_qfq>0 AND date<? "
             "ORDER BY symbol, date", batch + [TODAY]).fetchall()
         prow = seq.execute(
-            "SELECT symbol, high, low, close, close_qfq FROM preview_daily "
+            "SELECT symbol, high, low, close, close_qfq, volume FROM preview_daily "
             f"WHERE symbol IN ({','.join('?' * len(batch))})", batch).fetchall()
         pper = {r[0]: r for r in prow}
         per = {}
@@ -64,13 +95,15 @@ def main():
             if pr is not None:
                 # 追加今日盘中K线(用qfq复权)
                 ratio = pr[4] / pr[3] if pr[3] else 1
-                data = data + [(sym, TODAY, pr[1] * ratio, pr[2] * ratio, pr[3] * ratio, pr[4])]
+                data = data + [(sym, TODAY, pr[1] * ratio, pr[2] * ratio, pr[3] * ratio, pr[4], pr[5])]
             if len(data) < MIN_BARS:
                 continue
             qf = []
+            vols = []
             for r in data:
                 ratio = r[5] / r[4] if r[4] else 1
                 qf.append([r[1], r[2] * ratio, r[3] * ratio, r[5]])
+                vols.append(r[6] or 0)
             try:
                 merged = merge_inclusion(qf)
                 bi = calc_bi(merged)
@@ -90,15 +123,33 @@ def main():
                 if d in wd:
                     # 预览口径: 最后2个交易日(今+昨)未确认=preview, 更早已T+1确认=ok
                     st = 'preview' if d >= qf[-2][0] else 'ok'
-                    cur.append((sym, nm, typ, d, p, zd, zg, st))
+                    # D3标记(二买+老高5条件) / W30标记(买点+worth后30天内)
+                    f_d3 = 0
+                    f_w30 = 0
+                    try:
+                        di = next(i for i, r in enumerate(qf) if r[0] == d)
+                        if typ == '二买':
+                            c = laogao_conds([r[3] for r in qf], vols, di)
+                            if c and c[0] and c[1] and c[2] and c[3] and c[4]:
+                                f_d3 = 1
+                        if '买' in typ:
+                            for w in worth.get(sym, []):
+                                d0 = datetime.date.fromisoformat(w)
+                                d1 = datetime.date.fromisoformat(d)
+                                if 0 <= (d1 - d0).days <= 30:
+                                    f_w30 = 1
+                                    break
+                    except Exception:
+                        pass
+                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30))
                     by_type[typ] = by_type.get(typ, 0) + 1
                     if d == TODAY:
                         today_sigs.append((sym, nm, typ, d, p))
             if cur:
                 picks.executemany(
                     "INSERT INTO preview_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status) "
-                    "VALUES (?,?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
