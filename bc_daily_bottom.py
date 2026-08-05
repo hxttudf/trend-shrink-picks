@@ -1,0 +1,1 @@
+/home/ubuntu/trend-shrink-picks/bc_daily_bottom.py

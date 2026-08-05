@@ -1,0 +1,1 @@
+/home/ubuntu/trend-shrink-picks/bc_flag_d3w30.py

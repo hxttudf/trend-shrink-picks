@@ -1,0 +1,1 @@
+/home/ubuntu/trend-shrink-picks/bc_chanlun_daily.py
