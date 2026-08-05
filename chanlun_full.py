@@ -472,8 +472,17 @@ def find_buy_sell(bi, zs_list, trend, dif, merged, last_n_days):
     return res, chain, sell_chain
 
 
+_ANALYZE_CACHE: dict = {}
+_ANALYZE_TTL = 300  # 秒
+
+
 def analyze(symbol, window_days=7):
     """完整缠论分析: window_days=信号检测窗口(交易日)"""
+    import time as _t
+    _now = _t.time()
+    hit = _ANALYZE_CACHE.get(symbol)
+    if hit and _now - hit[0] < _ANALYZE_TTL:
+        return hit[1]
     conn = sqlite3.connect(DB)
     rows = conn.execute(
         "SELECT date, open, high, low, close, close_qfq, volume FROM stock_daily "
@@ -495,7 +504,7 @@ def analyze(symbol, window_days=7):
     last_n = set(r[0] for r in qf_rows[-window_days:])
     buy_sell, chain, sell_chain = find_buy_sell(bi, zs_list, trend, dif, merged, last_n)
 
-    return {
+    _result = {
         "symbol": symbol,
         "bars": len(rows),
         "bi_cnt": len(bi), "seg_cnt": len(segs), "zs_cnt": len(zs_list),
@@ -509,6 +518,12 @@ def analyze(symbol, window_days=7):
         "cur_price": round(qf_rows[-1][3], 2),
         "cur_date": rows[-1][0],
     }
+    _ANALYZE_CACHE[symbol] = (_now, _result)
+    if len(_ANALYZE_CACHE) > 800:
+        for _k in list(_ANALYZE_CACHE):
+            if _now - _ANALYZE_CACHE[_k][0] > _ANALYZE_TTL:
+                del _ANALYZE_CACHE[_k]
+    return _result
 
 
 if __name__ == "__main__":
