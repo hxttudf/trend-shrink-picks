@@ -27,6 +27,18 @@ def calc_ret(fp, bp):
 def run_picks(today_str):
     conn = sqlite3.connect(SRC_DB)
     c = conn.cursor()
+    # 确保策略表存在(run_picks/query_picks/sim_trade依赖; 丢失会导致query_picks报no such table)
+    out_boot = sqlite3.connect(OUT_DB)
+    out_boot.execute("CREATE TABLE IF NOT EXISTS strategies(id TEXT PRIMARY KEY, name TEXT, params TEXT)")
+    try:
+        out_boot.execute("ALTER TABLE strategies ADD COLUMN params TEXT")
+    except sqlite3.OperationalError:
+        pass  # 列已存在
+    for sid, p in STRATEGIES.items():
+        out_boot.execute("INSERT OR IGNORE INTO strategies(id, name, params) VALUES (?,?,?)", (sid, sid, str(p)))
+        out_boot.execute("UPDATE strategies SET params=? WHERE id=?", (str(p), sid))
+    out_boot.commit()
+    out_boot.close()
     
     has_data = c.execute("SELECT 1 FROM stock_daily WHERE date=? LIMIT 1", (today_str,)).fetchone()
     if not has_data:
