@@ -54,7 +54,8 @@ def main():
                 continue
             cur = []
             for bs in d.get("buy_sell", []):
-                cur.append((sym, nm, bs['type'], bs['time'], bs['price'], 0, 0))
+                cur.append((sym, nm, bs['type'], bs['time'], bs['price'],
+                            bs.get('zd') or 0, bs.get('zg') or 0))
                 by_type[bs['type']] = by_type.get(bs['type'], 0) + 1
             if cur:
                 picks.executemany(

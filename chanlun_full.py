@@ -501,7 +501,7 @@ def analyze(symbol, window_days=7):
         "bi_cnt": len(bi), "seg_cnt": len(segs), "zs_cnt": len(zs_list),
         "trend": trend,
         "last_zhongshu": last_zhongshu_effective(bi, zs_list),
-        "buy_sell": [{"time": x[1], "type": x[0], "price": x[2]} for x in buy_sell],
+        "buy_sell": [{"time": x[1], "type": x[0], "price": x[2], "zd": x[3], "zg": x[4]} for x in buy_sell],
         "chain": [{"time": x[1], "type": x[0], "price": x[2]} for x in chain],
         "sell_chain": [{"time": x[1], "type": x[0], "price": x[2]} for x in sell_chain],
         "bi": [{"time": merged[b[0]][0], "type": b[1], "price": round(b[2], 2)} for b in bi[-40:]],
