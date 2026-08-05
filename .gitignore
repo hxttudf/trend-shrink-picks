@@ -12,3 +12,4 @@ __pycache__/
 data/
 accounts.db
 *.log
+*.bak*
