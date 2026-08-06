@@ -472,12 +472,17 @@ def find_buy_sell(bi, zs_list, trend, dif, merged, last_n_days):
     return res, chain, sell_chain
 
 
-def analyze(symbol, window_days=7):
-    """完整缠论分析: window_days=信号检测窗口(交易日)"""
+def analyze(symbol, window_days=7, as_of=None):
+    """完整缠论分析: window_days=信号检测窗口(交易日); as_of=回放截止日期(不含未来)"""
     conn = sqlite3.connect(DB)
-    rows = conn.execute(
-        "SELECT date, open, high, low, close, close_qfq, volume FROM stock_daily "
-        "WHERE symbol=? AND close_qfq>0 ORDER BY date", (symbol,)).fetchall()
+    if as_of:
+        rows = conn.execute(
+            "SELECT date, open, high, low, close, close_qfq, volume FROM stock_daily "
+            "WHERE symbol=? AND close_qfq>0 AND date<=? ORDER BY date", (symbol, as_of)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT date, open, high, low, close, close_qfq, volume FROM stock_daily "
+            "WHERE symbol=? AND close_qfq>0 ORDER BY date", (symbol,)).fetchall()
     conn.close()
     if len(rows) < 150:
         return {"error": "数据不足"}
