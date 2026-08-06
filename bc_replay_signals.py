@@ -25,6 +25,8 @@ syms = [r[0] for r in seq.execute(
     "SELECT DISTINCT symbol FROM stock_daily WHERE date='2026-08-06'")]
 names = {r[0]: r[1] for r in seq.execute(
     "SELECT symbol, name FROM stock_basics WHERE date=(SELECT MAX(date) FROM stock_basics)")}
+# 与正式任务一致: 跳过ST股(正式体系不要ST)
+syms = [s for s in syms if 'ST' not in (names.get(s, '') or '').upper()]
 
 picks = sqlite3.connect(PICKS, timeout=30)
 now_ok = set()
