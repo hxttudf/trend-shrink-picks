@@ -31,10 +31,10 @@ def main():
         PRIMARY KEY (symbol, signal_type, signal_date))""")
     picks.execute("CREATE INDEX IF NOT EXISTS idx_chanlun_date ON chanlun_signals(signal_date)")
 
-    # 窗口内旧信号清空(笔修正后可能变化)
+    # 窗口内旧信号标记error(留痕, 不删除) — 重算后仍成立的会被INSERT覆盖回ok
     rows = seq.execute("SELECT MAX(date) FROM stock_daily").fetchone()
     last_date = rows[0] if rows and rows[0] else ""
-    picks.execute("DELETE FROM chanlun_signals WHERE signal_date > date(?, '-20 day')", (last_date,))
+    picks.execute("UPDATE chanlun_signals SET status='error' WHERE signal_date > date(?, '-20 day')", (last_date,))
     picks.commit()
 
     t0 = time.time()
@@ -60,8 +60,8 @@ def main():
             if cur:
                 picks.executemany(
                     "INSERT OR REPLACE INTO chanlun_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg) "
-                    "VALUES (?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status) "
+                    "VALUES (?,?,?,?,?,?,?,'ok')", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
