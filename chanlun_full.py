@@ -203,7 +203,9 @@ def calc_zhongshu_bi(bi):
 
 def last_zhongshu_effective(bi, zs_list):
     """最近有效中枢(前端显示用): 优先"雏形中枢"(最后3-4笔重叠, 贴近当前价)
-    否则回退到最近已形成中枢"""
+    否则回退到最近已形成中枢
+    离开段检查: 回退时若最后一段(最近两笔)与中枢区间无重叠 → 已离开, 返回None
+    (与trend-stockscope版同步; 修复: 暴涨离开后旧中枢远离当前价致前端错位)"""
     tail = bi[-4:] if len(bi) >= 4 else bi
     if len(tail) >= 3:
         spans = []
@@ -217,6 +219,11 @@ def last_zhongshu_effective(bi, zs_list):
             return {"zd": round(zd, 2), "zg": round(zg, 2), "ext": len(tail)}
     if zs_list:
         z = zs_list[-1]
+        # 离开段检查: 最后一段与中枢无重叠 → 无最新中枢(旧中枢已结束)
+        if len(bi) >= 2:
+            lo, hi = min(bi[-2][2], bi[-1][2]), max(bi[-2][2], bi[-1][2])
+            if hi <= z["zd"] or lo >= z["zg"]:
+                return None
         return {"zd": round(z["zd"], 2), "zg": round(z["zg"], 2), "ext": z["ext"]}
     return None
 
