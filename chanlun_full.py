@@ -219,11 +219,6 @@ def last_zhongshu_effective(bi, zs_list):
             return {"zd": round(zd, 2), "zg": round(zg, 2), "ext": len(tail)}
     if zs_list:
         z = zs_list[-1]
-        # 离开段检查: 最后一段与中枢无重叠 → 无最新中枢(旧中枢已结束)
-        if len(bi) >= 2:
-            lo, hi = min(bi[-2][2], bi[-1][2]), max(bi[-2][2], bi[-1][2])
-            if hi <= z["zd"] or lo >= z["zg"]:
-                return None
         return {"zd": round(z["zd"], 2), "zg": round(z["zg"], 2), "ext": z["ext"]}
     return None
 
