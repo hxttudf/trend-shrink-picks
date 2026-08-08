@@ -74,8 +74,8 @@ def main():
             ci = td_idx.get(today, len(tds_sym) - 1)
             for x in all_sigs:
                 si = td_idx.get(x['time'], -1)
-                # 次日确认=正常确认流程(later=0); 相隔>=2个交易日才算事后确认
-                later = 1 if (si >= 0 and ci - si >= 2) else 0
+                # 事后确认判定交给回放脚本(逐日验证首次可算出日); daily新记录默认当时确认(later=0, 不误标"后")
+                later = 0
                 picks.execute(
                     "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
                     "VALUES (?,?,?,?,?,'ok',?,?) "

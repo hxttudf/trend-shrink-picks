@@ -13,7 +13,7 @@ import chanlun_full as cf
 
 SEQ_DB = "/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db"
 PICKS_DB = "/home/ubuntu/databases/trend_picks.db"
-DAYS = int(sys.argv[1]) if len(sys.argv) > 1 else 40
+DAYS = int(sys.argv[1]) if len(sys.argv) > 1 else 90
 
 
 def gen_all_signals(rows_all, D):
@@ -23,7 +23,8 @@ def gen_all_signals(rows_all, D):
         return []
     qf_rows = [r for r in rows if r[5] > 0]
     closes_qf = [r[5] for r in qf_rows]
-    k = [[r[0], r[4], r[2]] for r in qf_rows]  # [date, high, low]
+    # rows_all字段: 0=date 1=open 2=high 3=low 4=close 5=close_qfq 6=volume
+    k = [[r[0], r[2], r[3]] for r in qf_rows]  # [date, high, low] — 修正: 之前误用close/high导致结构失真
     merged = cf.merge_inclusion(k)
     bi = cf.calc_bi(merged)
     if len(bi) < 8:
@@ -70,7 +71,8 @@ def main():
             for typ, dt, p in sigs:
                 # 事后确认判定: 确认日与信号日相隔>=2个交易日才算事后(次日确认=正常确认流程)
                 si = td_idx.get(dt, -1)
-                later = 1 if (si >= 0 and ci - si >= 2) else 0
+                # 窗口起点(ci=0)出现的信号可能窗口前已确认, 默认当时; 窗口内首次出现且延迟>=2交易日=事后确认
+                later = 1 if (si >= 0 and ci >= 1 and ci - si >= 2) else 0
                 picks.execute(
                     "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
                     "VALUES (?,?,?,?,?,'ok',?,?) "
