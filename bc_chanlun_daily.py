@@ -31,8 +31,10 @@ def main():
         PRIMARY KEY (symbol, signal_type, signal_date))""")
     picks.execute("CREATE INDEX IF NOT EXISTS idx_chanlun_date ON chanlun_signals(signal_date)")
 
-    # 不再"全标error" — 窗口过期≠信号错误(用户定案): 只有结构证伪(信号不在全历史结构里)才标error
-    # 验证逻辑在每只股票循环里: all_signals(全历史信号)对比 chanlun_signals 记录
+    # 信号确认机制(用户定案): confirmed_date=信号首次被算出的日期; confirmed_later=1事后确认/0当天确认
+    # 每天: 全历史结构(all_signals)同步写入+状态验证 — 当时算不出的信号, 事后确认时补录(confirmed_later=1)
+    rows = seq.execute("SELECT MAX(date) FROM stock_daily").fetchone()
+    last_date = rows[0] if rows and rows[0] else ""
 
     t0 = time.time()
     total = 0
@@ -61,9 +63,26 @@ def main():
                     "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score) "
                     "VALUES (?,?,?,?,?,?,?,'ok',?,?)", cur)
                 total += len(cur)
-            # 全历史结构验证: 该股票所有记录 — 在all_signals里=ok(有效), 不在=error(被推翻/证伪)
+            # 全历史结构同步(UPSERT): 新信号记录确认信息(confirmed_date=今天, later=当日/事后), 已有只更新价格+状态
+            today = d.get('cur_date') or last_date
+            all_sigs = d.get("all_signals", [])
+            sig_set = {(x['type'], x['time']) for x in all_sigs}
+            for x in all_sigs:
+                later = 1 if x['time'] < today else 0
+                picks.execute(
+                    "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
+                    "VALUES (?,?,?,?,?,'ok',?,?) "
+                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price, status='ok'",
+                    (sym, nm, x['type'], x['time'], x['price'], today, later))
+                total += 1
+            # 窗口内信号: 更新分数/强度(有score)
+            for bs in d.get("buy_sell", []):
+                picks.execute(
+                    "UPDATE chanlun_signals SET strength=?, strength_score=?, status='ok' "
+                    "WHERE symbol=? AND signal_type=? AND signal_date=?",
+                    (bs.get('strength') or 'neutral', bs.get('score') or 50, sym, bs['type'], bs['time']))
+            # 状态验证: 不在当前结构的记录 → error(被推翻/类型演化)
             try:
-                sig_set = {(x['type'], x['time']) for x in d.get("all_signals", [])}
                 rows = picks.execute(
                     "SELECT signal_type, signal_date, status FROM chanlun_signals WHERE symbol=?", (sym,)).fetchall()
                 for t, dt, st in rows:
