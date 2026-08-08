@@ -32,9 +32,10 @@ def open_qfq(r):
 # 收益: T+1 open买入 → T+5/10/20 close卖出(对数收益)
 def build(sym_rows):
     dates = [r[1] for r in sym_rows]
-    close = np.array([r[6] for r in sym_rows], dtype=float)
-    high = np.array([r[3] for r in sym_rows], dtype=float)
-    low = np.array([r[4] for r in sym_rows], dtype=float)
+    close = np.array([r[6] for r in sym_rows], dtype=float)          # close_qfq 前复权
+    # 修复: high/low 用当日ratio复权(与close_qfq同基准) — 之前用未复权导致混合基准bug
+    high = np.array([r[3] * (r[6] / r[5]) if r[5] else r[3] for r in sym_rows], dtype=float)
+    low = np.array([r[4] * (r[6] / r[5]) if r[5] else r[4] for r in sym_rows], dtype=float)
     vol = np.array([r[7] for r in sym_rows], dtype=float)
     oq = np.array([open_qfq(r) for r in sym_rows], dtype=float)
     return dates, close, high, low, vol, oq
