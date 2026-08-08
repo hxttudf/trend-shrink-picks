@@ -63,12 +63,19 @@ def main():
                     "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score) "
                     "VALUES (?,?,?,?,?,?,?,'ok',?,?)", cur)
                 total += len(cur)
-            # 全历史结构同步(UPSERT): 新信号记录确认信息(confirmed_date=今天, later=当日/事后), 已有只更新价格+状态
+            # 全历史结构同步(UPSERT): 新信号记录确认信息(confirmed_date=今天, later=交易日差>=2才算事后), 已有只更新价格+状态
             today = d.get('cur_date') or last_date
             all_sigs = d.get("all_signals", [])
             sig_set = {(x['type'], x['time']) for x in all_sigs}
+            # 交易日序列(该股票截至today): 事后确认判定用交易日差
+            tds_sym = [r[0] for r in seq.execute(
+                "SELECT date FROM stock_daily WHERE symbol=? AND date<=? ORDER BY date", (sym, today))]
+            td_idx = {d: i for i, d in enumerate(tds_sym)}
+            ci = td_idx.get(today, len(tds_sym) - 1)
             for x in all_sigs:
-                later = 1 if x['time'] < today else 0
+                si = td_idx.get(x['time'], -1)
+                # 次日确认=正常确认流程(later=0); 相隔>=2个交易日才算事后确认
+                later = 1 if (si >= 0 and ci - si >= 2) else 0
                 picks.execute(
                     "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
                     "VALUES (?,?,?,?,?,'ok',?,?) "

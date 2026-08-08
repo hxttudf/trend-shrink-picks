@@ -63,14 +63,18 @@ def main():
         cur = gen_all_signals(rows_all, tds[-1])
         if not cur:
             continue
+        td_idx = {d: i for i, d in enumerate(tds)}
         for D in tds:
             sigs = gen_all_signals(rows_all, D)
+            ci = td_idx.get(D, -1)
             for typ, dt, p in sigs:
-                later = 1 if dt < D else 0
+                # 事后确认判定: 确认日与信号日相隔>=2个交易日才算事后(次日确认=正常确认流程)
+                si = td_idx.get(dt, -1)
+                later = 1 if (si >= 0 and ci - si >= 2) else 0
                 picks.execute(
                     "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
                     "VALUES (?,?,?,?,?,'ok',?,?) "
-                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price",
+                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price, confirmed_later=excluded.confirmed_later",
                     (sym, nm, typ, dt, p, D, later))
                 added += 1
         done += 1
