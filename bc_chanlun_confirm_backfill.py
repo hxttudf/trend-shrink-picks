@@ -78,7 +78,10 @@ def main():
                 picks.execute(
                     "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
                     "VALUES (?,?,?,?,?,'ok',?,?) "
-                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price",
+                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET "
+                    "price=excluded.price, "
+                    "confirmed_date=CASE WHEN chanlun_signals.confirmed_date IS NULL OR excluded.confirmed_date < chanlun_signals.confirmed_date THEN excluded.confirmed_date ELSE chanlun_signals.confirmed_date END, "
+                    "confirmed_later=CASE WHEN chanlun_signals.confirmed_date IS NULL OR excluded.confirmed_date < chanlun_signals.confirmed_date THEN excluded.confirmed_later ELSE chanlun_signals.confirmed_later END",
                     (sym, nm, typ, dt, p, D, later))
                 added += 1
         done += 1
