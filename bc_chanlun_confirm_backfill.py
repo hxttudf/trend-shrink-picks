@@ -21,16 +21,18 @@ def gen_all_signals(rows_all, D):
     rows = [r for r in rows_all if r[0] <= D]
     if len(rows) < 60:
         return []
-    qf_rows = [r for r in rows if r[5] > 0]
-    closes_qf = [r[5] for r in qf_rows]
-    # rows_all字段: 0=date 1=open 2=high 3=low 4=close 5=close_qfq 6=volume
-    k = [[r[0], r[2], r[3]] for r in qf_rows]  # [date, high, low] — 修正: 之前误用close/high导致结构失真
-    merged = cf.merge_inclusion(k)
+    # rows字段: 0=date 1=open 2=high 3=low 4=close 5=close_qfq 6=volume
+    # 复权处理(与analyze完全一致): high/low按复权比调整 — 修复除权股(raw高低点结构失真, confirmed_date漏写)
+    qf = []
+    for r in rows:
+        ratio = r[5] / r[4] if r[4] else 1
+        qf.append([r[0], r[2] * ratio, r[3] * ratio, r[5]])  # date, high_qfq, low_qfq, close_qfq
+    merged = cf.merge_inclusion(qf)
     bi = cf.calc_bi(merged)
     if len(bi) < 8:
         return []
     zs_list = cf.calc_zhongshu_bi(bi)
-    dif, dea, macd = cf.macd_data(closes_qf)
+    dif, dea, macd = cf.macd_data([r[3] for r in qf])
     sigs = cf.find_all_signals(bi, zs_list, dif, merged)
     return [(t, dt, p) for t, dt, p, _, _ in sigs]
 

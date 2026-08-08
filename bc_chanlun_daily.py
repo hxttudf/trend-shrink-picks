@@ -59,9 +59,12 @@ def main():
                 by_type[bs['type']] = by_type.get(bs['type'], 0) + 1
             if cur:
                 picks.executemany(
-                    "INSERT OR REPLACE INTO chanlun_signals "
+                    "INSERT INTO chanlun_signals "
                     "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score) "
-                    "VALUES (?,?,?,?,?,?,?,'ok',?,?)", cur)
+                    "VALUES (?,?,?,?,?,?,?,'ok',?,?) "
+                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET "
+                    "price=excluded.price, ref_zd=excluded.ref_zd, ref_zg=excluded.ref_zg, "
+                    "status='ok', strength=excluded.strength, strength_score=excluded.strength_score", cur)
                 total += len(cur)
             # 全历史结构同步(UPSERT): 新信号记录确认信息(confirmed_date=今天, later=交易日差>=2才算事后), 已有只更新价格+状态
             today = d.get('cur_date') or last_date
