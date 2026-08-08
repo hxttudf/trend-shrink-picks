@@ -98,9 +98,15 @@ def main():
                 for t, dt, st in rows:
                     new_st = 'ok' if (t, dt) in sig_set else 'error'
                     if new_st != st:
-                        picks.execute(
-                            "UPDATE chanlun_signals SET status=? WHERE symbol=? AND signal_type=? AND signal_date=?",
-                            (new_st, sym, t, dt))
+                        if new_st == 'error':
+                            # ok→error: 记录推翻日期(当天); 反推翻恢复(error→ok)时清空
+                            picks.execute(
+                                "UPDATE chanlun_signals SET status='error', overturned_date=? WHERE symbol=? AND signal_type=? AND signal_date=?",
+                                (today, sym, t, dt))
+                        else:
+                            picks.execute(
+                                "UPDATE chanlun_signals SET status='ok', overturned_date=NULL WHERE symbol=? AND signal_type=? AND signal_date=?",
+                                (sym, t, dt))
             except Exception:
                 pass
         picks.commit()
