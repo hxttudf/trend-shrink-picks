@@ -31,11 +31,8 @@ def main():
         PRIMARY KEY (symbol, signal_type, signal_date))""")
     picks.execute("CREATE INDEX IF NOT EXISTS idx_chanlun_date ON chanlun_signals(signal_date)")
 
-    # 窗口内旧信号标记error(留痕, 不删除) — 重算后仍成立的会被INSERT覆盖回ok
-    rows = seq.execute("SELECT MAX(date) FROM stock_daily").fetchone()
-    last_date = rows[0] if rows and rows[0] else ""
-    picks.execute("UPDATE chanlun_signals SET status='error' WHERE signal_date > date(?, '-20 day')", (last_date,))
-    picks.commit()
+    # 不再"全标error" — 窗口过期≠信号错误(用户定案): 只有结构证伪(信号不在全历史结构里)才标error
+    # 验证逻辑在每只股票循环里: all_signals(全历史信号)对比 chanlun_signals 记录
 
     t0 = time.time()
     total = 0
@@ -44,7 +41,7 @@ def main():
         batch = syms[batch_i:batch_i + BATCH]
         for sym in batch:
             try:
-                d = analyze(sym, window_days=WINDOW)
+                d = analyze(sym, window_days=WINDOW, include_all=True)
             except Exception:
                 continue
             if d.get("error"):
@@ -64,6 +61,19 @@ def main():
                     "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score) "
                     "VALUES (?,?,?,?,?,?,?,'ok',?,?)", cur)
                 total += len(cur)
+            # 全历史结构验证: 该股票所有记录 — 在all_signals里=ok(有效), 不在=error(被推翻/证伪)
+            try:
+                sig_set = {(x['type'], x['time']) for x in d.get("all_signals", [])}
+                rows = picks.execute(
+                    "SELECT signal_type, signal_date, status FROM chanlun_signals WHERE symbol=?", (sym,)).fetchall()
+                for t, dt, st in rows:
+                    new_st = 'ok' if (t, dt) in sig_set else 'error'
+                    if new_st != st:
+                        picks.execute(
+                            "UPDATE chanlun_signals SET status=? WHERE symbol=? AND signal_type=? AND signal_date=?",
+                            (new_st, sym, t, dt))
+            except Exception:
+                pass
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
             print(f"  批{batch_i//BATCH+1}: 累计{total}条, {time.time()-t0:.0f}s", flush=True)
