@@ -44,68 +44,61 @@ def laogao_conds(closes, vols, i):
     return (cur > ma20 > ma60, 2 <= dist <= 15, (i - li) >= 120, ma20 > ma20_5, r7)
 
 
-def calc_strength(typ, zd, zg, closes, vols, i):
-    """强度评分(回测最优参数): 强=放量1.5x+深度超跌20%/远离中枢5%; 弱=极度缩量0.6x/贴中枢3%"""
-    if i < 20 or i >= len(closes):
-        return 'neutral'
-    c0 = closes[i]
-    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
-    vr = vols[i] / avg if avg else 0
-    if typ == '三买' and zg and zg > 0:
-        brk = (c0 - zg) / zg * 100
-        if brk > 5 and vr > 1.5:
-            return 'strong'
-        if brk < 3:
-            return 'weak'
-        return 'neutral'
-    if typ in ('一买', '二买'):
-        c10 = closes[i - 10]
-        drop10 = (c0 - c10) / c10 * 100 if c10 else 0
-        if drop10 < -20:
-            return 'strong'
-        if vr < 0.6 and drop10 > -20:
-            return 'weak'
-        return 'neutral'
-    if typ == '三卖' and zd and zd > 0:
-        brk = (zd - c0) / zd * 100
-        if brk > 5 and vr > 1.5:
-            return 'strong'
-        if brk < 3:
-            return 'weak'
-        return 'neutral'
-    if typ in ('一卖', '二卖'):
-        c10 = closes[i - 10]
-        rise10 = (c0 - c10) / c10 * 100 if c10 else 0
-        if rise10 > 20:
-            return 'strong'
-        if vr < 0.6 and rise10 < 20:
-            return 'weak'
-        return 'neutral'
-    return 'neutral'
+def _lin(v, p20, p80, lo, hi):
+    """线性映射: 因子值v按历史分位边界[p20,p80]映射到[lo,hi], 超出截断"""
+    if p80 <= p20:
+        return 0.0
+    x = (v - p20) / (p80 - p20)
+    return max(lo, min(hi, lo + x * (hi - lo)))
 
 
-def calc_score(typ, zd, zg, closes, vols, i):
-    """连续强度分(0-100): 50基准 + 量能±20 + 形态±25 (回测验证: 买点单调/卖点70+显著)"""
+def calc_score(typ, zd, zg, closes, highs, lows, vols, i):
+    """分类型连续强度分(0-100): 一买=深跌超跌(原); 二买=强势回调低吸(站上MA20+回调深度);
+    三买=突破回踩(突破力度+箱体高度-回踩深度) — 边界来自2021-2026回测样本外验证
+    与chanlun_full.calc_score一致(分类型打分, 互不影响); 只用≤i数据"""
     if i < 20 or i >= len(closes):
         return 50.0
     c0 = closes[i]
-    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
-    vr = vols[i] / avg if avg else 0
-    s = 50.0
-    s += max(-20.0, min(20.0, (vr - 1) * 15))
-    if typ in ('三买', '三卖'):
-        zz = zg if typ == '三买' else zd
-        if zz and zz > 0:
-            brk = (c0 - zg) / zg * 100 if typ == '三买' else (zd - c0) / zd * 100
-            s += max(-25.0, min(25.0, brk * 1.5))
-    else:
+    if c0 <= 0:
+        return 50.0
+    if typ == '一买':
+        avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
+        vr = vols[i] / avg if avg else 1
+        s = 50.0 + max(-20.0, min(20.0, (vr - 1) * 15))
         c10 = closes[i - 10]
         chg = (c0 - c10) / c10 * 100 if c10 else 0
-        if typ in ('一买', '二买'):
-            s += max(-25.0, min(25.0, -chg * 0.8))
-        else:
-            s += max(-25.0, min(25.0, chg * 0.8))
+        s += max(-25.0, min(25.0, -chg * 0.8))
+        return round(max(0.0, min(100.0, s)), 1)
+    if typ == '二买':
+        ma20 = sum(closes[i - 20:i + 1]) / 21
+        L20 = min(lows[i - 20:i + 1])
+        b5 = (c0 / ma20 - 1) * 100 if ma20 > 0 else 0
+        b1 = (c0 - L20) / L20 * 100 if L20 > 0 else 0
+        s = 50.0 + _lin(b5, -1.62, 5.66, -15, 15) + _lin(b1, -65.53, 9.73, -12, 12)
+        return round(max(0.0, min(100.0, s)), 1)
+    if typ == '三买':
+        H40 = max(highs[i - 40:i + 1])
+        H40p = max(highs[i - 80:i - 40]) if i >= 80 else H40
+        L60 = min(lows[i - 60:i + 1])
+        t2 = (H40 / H40p - 1) * 100 if H40p > 0 else 0
+        t5 = (H40 - L60) / L60 * 100 if L60 > 0 else 0
+        t1 = (c0 - H40) / H40 * 100 if H40 > 0 else 0
+        s = 50.0 + _lin(t2, -0.98, 29.25, 0, 15) + _lin(t5, 24.49, 68.88, 0, 15) + _lin(-t1, 9.97, 77.37, -8, 8)
+        return round(max(0.0, min(100.0, s)), 1)
+    # 卖点: 原逻辑(涨得多分高)
+    c10 = closes[i - 10]
+    chg = (c0 - c10) / c10 * 100 if c10 else 0
+    s = 50.0 + max(-25.0, min(25.0, chg * 0.8))
     return round(max(0.0, min(100.0, s)), 1)
+
+
+def calc_strength(score):
+    """分数驱动强弱: >=75强(买入纪律), <=40弱"""
+    if score >= 75:
+        return 'strong'
+    if score <= 40:
+        return 'weak'
+    return 'neutral'
 
 
 def main():
@@ -202,8 +195,10 @@ def main():
                     try:
                         di = next(i for i, r in enumerate(qf) if r[0] == d)
                         closes_qf = [r[3] for r in qf]
-                        f_str = calc_strength(typ, zd, zg, closes_qf, vols, di)
-                        f_score = calc_score(typ, zd, zg, closes_qf, vols, di)
+                        highs_qf = [r[1] for r in qf]
+                        lows_qf = [r[2] for r in qf]
+                        f_score = calc_score(typ, zd, zg, closes_qf, highs_qf, lows_qf, vols, di)
+                        f_str = calc_strength(f_score)
                         if typ == '二买':
                             c = laogao_conds(closes_qf, vols, di)
                             if c and c[0] and c[1] and c[2] and c[3] and c[4]:

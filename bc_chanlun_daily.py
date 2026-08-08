@@ -55,13 +55,14 @@ def main():
             cur = []
             for bs in d.get("buy_sell", []):
                 cur.append((sym, nm, bs['type'], bs['time'], bs['price'],
-                            bs.get('zd') or 0, bs.get('zg') or 0))
+                            bs.get('zd') or 0, bs.get('zg') or 0,
+                            bs.get('strength') or 'neutral', bs.get('score') or 50))
                 by_type[bs['type']] = by_type.get(bs['type'], 0) + 1
             if cur:
                 picks.executemany(
                     "INSERT OR REPLACE INTO chanlun_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status) "
-                    "VALUES (?,?,?,?,?,?,?,'ok')", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score) "
+                    "VALUES (?,?,?,?,?,?,?,'ok',?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
