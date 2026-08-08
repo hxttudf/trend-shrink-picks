@@ -88,30 +88,16 @@ def main():
                     "UPDATE chanlun_signals SET strength=?, strength_score=?, status='ok' "
                     "WHERE symbol=? AND signal_type=? AND signal_date=?",
                     (bs.get('strength') or 'neutral', bs.get('score') or 50, sym, bs['type'], bs['time']))
-            # 状态验证(用户定案): 只有"被替代/证伪"才标error —
-            #  在结构里=ok; 不在结构里但同日有替代信号(类型演化/新低替代)=error(被推翻); 无替代=保持原状(历史有效, 结构消失≠证伪)
-            all_types = ['一买', '二买', '三买', '一卖', '二卖', '三卖']
+            # 状态验证(用户定案): 在结构=ok(有效); 不在结构=证伪(error) — 结构消失即证伪
             try:
                 rows = picks.execute(
                     "SELECT signal_type, signal_date, status FROM chanlun_signals WHERE symbol=?", (sym,)).fetchall()
                 for t, dt, st in rows:
-                    if (t, dt) in sig_set:
-                        if st != 'ok':
-                            picks.execute(
-                                "UPDATE chanlun_signals SET status='ok' WHERE symbol=? AND signal_type=? AND signal_date=?",
-                                (sym, t, dt))
-                    else:
-                        has_alt = any((t2, dt) in sig_set for t2 in all_types if t2 != t)
-                        if has_alt:
-                            if st != 'error':
-                                picks.execute(
-                                    "UPDATE chanlun_signals SET status='error' WHERE symbol=? AND signal_type=? AND signal_date=?",
-                                    (sym, t, dt))
-                        elif st != 'ok':
-                            # 无替代信号: 历史有效(结构消失≠证伪) — 改回ok, 不误标推翻
-                            picks.execute(
-                                "UPDATE chanlun_signals SET status='ok' WHERE symbol=? AND signal_type=? AND signal_date=?",
-                                (sym, t, dt))
+                    new_st = 'ok' if (t, dt) in sig_set else 'error'
+                    if new_st != st:
+                        picks.execute(
+                            "UPDATE chanlun_signals SET status=? WHERE symbol=? AND signal_type=? AND signal_date=?",
+                            (new_st, sym, t, dt))
             except Exception:
                 pass
         picks.commit()
