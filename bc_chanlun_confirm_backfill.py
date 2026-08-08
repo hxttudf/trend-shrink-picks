@@ -74,7 +74,7 @@ def main():
                 picks.execute(
                     "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
                     "VALUES (?,?,?,?,?,'ok',?,?) "
-                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price, confirmed_later=excluded.confirmed_later",
+                    "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price",
                     (sym, nm, typ, dt, p, D, later))
                 added += 1
         done += 1
