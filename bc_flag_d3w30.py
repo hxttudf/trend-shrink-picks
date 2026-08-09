@@ -37,70 +37,6 @@ def laogao_conds(closes, vols, i):
     return (cur > ma20 > ma60, 2 <= dist <= 15, (i - li) >= 120, ma20 > ma20_5, r7)
 
 
-def calc_strength(typ, zd, zg, closes, vols, i):
-    """强度评分(回测最优参数): 强=放量1.5x+深度超跌20%/远离中枢5%; 弱=极度缩量0.6x/贴中枢3%"""
-    if i < 20 or i >= len(closes):
-        return 'neutral'
-    c0 = closes[i]
-    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
-    vr = vols[i] / avg if avg else 0
-    if typ == '三买' and zg and zg > 0:
-        brk = (c0 - zg) / zg * 100
-        if brk > 5 and vr > 1.5:
-            return 'strong'
-        if brk < 3:
-            return 'weak'
-        return 'neutral'
-    if typ in ('一买', '二买'):
-        c10 = closes[i - 10]
-        drop10 = (c0 - c10) / c10 * 100 if c10 else 0
-        if drop10 < -20:
-            return 'strong'
-        if vr < 0.6 and drop10 > -20:
-            return 'weak'
-        return 'neutral'
-    if typ == '三卖' and zd and zd > 0:
-        brk = (zd - c0) / zd * 100
-        if brk > 5 and vr > 1.5:
-            return 'strong'
-        if brk < 3:
-            return 'weak'
-        return 'neutral'
-    if typ in ('一卖', '二卖'):
-        c10 = closes[i - 10]
-        rise10 = (c0 - c10) / c10 * 100 if c10 else 0
-        if rise10 > 20:
-            return 'strong'
-        if vr < 0.6 and rise10 < 20:
-            return 'weak'
-        return 'neutral'
-    return 'neutral'
-
-
-def calc_score(typ, zd, zg, closes, vols, i):
-    """连续强度分(0-100): 50基准 + 量能±20 + 形态±25 (回测验证: 买点单调/卖点70+显著)"""
-    if i < 20 or i >= len(closes):
-        return 50.0
-    c0 = closes[i]
-    avg = sum(vols[i - 20:i]) / 20 if i >= 20 else 1
-    vr = vols[i] / avg if avg else 0
-    s = 50.0
-    s += max(-20.0, min(20.0, (vr - 1) * 15))
-    if typ in ('三买', '三卖'):
-        zz = zg if typ == '三买' else zd
-        if zz and zz > 0:
-            brk = (c0 - zg) / zg * 100 if typ == '三买' else (zd - c0) / zd * 100
-            s += max(-25.0, min(25.0, brk * 1.5))
-    else:
-        c10 = closes[i - 10]
-        chg = (c0 - c10) / c10 * 100 if c10 else 0
-        if typ in ('一买', '二买'):
-            s += max(-25.0, min(25.0, -chg * 0.8))
-        else:
-            s += max(-25.0, min(25.0, chg * 0.8))
-    return round(max(0.0, min(100.0, s)), 1)
-
-
 def main():
     t0 = time.time()
     picks = sqlite3.connect(TREND_DB)
@@ -117,13 +53,12 @@ def main():
         "WHERE status='ok' AND signal_date >= date('now', ?)",
         (f'-{WIN} day',)).fetchall()
     # 先清窗口内标记
-    picks.execute("UPDATE chanlun_signals SET d3=0, w30=0, strength='neutral' WHERE signal_date >= date('now', ?)",
+    picks.execute("UPDATE chanlun_signals SET d3=0, w30=0 WHERE signal_date >= date('now', ?)",
                   (f'-{WIN} day',))
     picks.commit()
 
     cache = {}
     n_d3 = n_w30 = 0
-    n_str = {'strong': 0, 'neutral': 0, 'weak': 0}
     for sym, name, typ, sdate, zd, zg in rows:
         if sym not in cache:
             k = seq.execute(
@@ -140,12 +75,6 @@ def main():
         idx = d2i.get(sdate)
         if idx is None:
             continue
-        # 强度评分(全部信号)
-        st = calc_strength(typ, zd, zg, closes, vols, idx)
-        sc = calc_score(typ, zd, zg, closes, vols, idx)
-        picks.execute("UPDATE chanlun_signals SET strength=?, strength_score=? WHERE symbol=? AND signal_date=? AND signal_type=?",
-                      (st, sc, sym, sdate, typ))
-        n_str[st] += 1
         f_d3 = f_w30 = 0
         if typ == '二买':
             c = laogao_conds(closes, vols, idx)
@@ -165,8 +94,8 @@ def main():
     picks.commit()
     picks.close()
     seq.close()
-    print(f"✅ D3/W30+强度标记: 窗口{WIN}天 | 信号{len(rows)}条 | "
-          f"D3{n_d3}/W30{n_w30} | 强度 强{n_str['strong']}/中{n_str['neutral']}/弱{n_str['weak']} | {time.time()-t0:.0f}s")
+    print(f"✅ D3/W30标记: 窗口{WIN}天 | 信号{len(rows)}条 | "
+          f"D3{n_d3}/W30{n_w30} | {time.time()-t0:.0f}s")
 
 
 if __name__ == "__main__":
