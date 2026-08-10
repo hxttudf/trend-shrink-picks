@@ -25,10 +25,10 @@ def calc_ret(fp, bp):
     return round((fp/bp - 1)*100, 2) if fp and bp and bp > 0 else None
 
 def run_picks(today_str):
-    conn = sqlite3.connect(SRC_DB)
+    conn = sqlite3.connect(SRC_DB, timeout=60)
     c = conn.cursor()
     # 确保策略表存在(run_picks/query_picks/sim_trade依赖; 丢失会导致query_picks报no such table)
-    out_boot = sqlite3.connect(OUT_DB)
+    out_boot = sqlite3.connect(OUT_DB, timeout=60)
     out_boot.execute("CREATE TABLE IF NOT EXISTS strategies(id TEXT PRIMARY KEY, name TEXT, params TEXT)")
     try:
         out_boot.execute("ALTER TABLE strategies ADD COLUMN params TEXT")
@@ -155,7 +155,7 @@ def run_picks(today_str):
 def save_picks(picks):
     if not picks:
         return
-    out = sqlite3.connect(OUT_DB)
+    out = sqlite3.connect(OUT_DB, timeout=60)
     dates = set(p[0] for p in picks)
     for dt in dates:
         out.execute("DELETE FROM daily_picks WHERE date=?", (dt,))
