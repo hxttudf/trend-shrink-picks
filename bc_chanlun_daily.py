@@ -99,13 +99,15 @@ def main():
                     new_st = 'ok' if (t, dt) in sig_set else 'error'
                     if new_st != st:
                         if new_st == 'error':
-                            # ok→error: 记录推翻日期(当天); 反推翻恢复(error→ok)时清空
+                            # ok→error: 记录推翻日期(当天) + 推翻时机(overturned_later: 推翻日-信号日交易日差>=2=1事后推翻/<=1=0当时推翻, 同confirmed_later语义)
+                            si = td_idx.get(dt, -1)
+                            ov_later = 1 if (si >= 0 and ci - si >= 2) else (0 if si >= 0 else None)
                             picks.execute(
-                                "UPDATE chanlun_signals SET status='error', overturned_date=? WHERE symbol=? AND signal_type=? AND signal_date=?",
-                                (today, sym, t, dt))
+                                "UPDATE chanlun_signals SET status='error', overturned_date=?, overturned_later=? WHERE symbol=? AND signal_type=? AND signal_date=?",
+                                (today, ov_later, sym, t, dt))
                         else:
                             picks.execute(
-                                "UPDATE chanlun_signals SET status='ok', overturned_date=NULL WHERE symbol=? AND signal_type=? AND signal_date=?",
+                                "UPDATE chanlun_signals SET status='ok', overturned_date=NULL, overturned_later=NULL WHERE symbol=? AND signal_type=? AND signal_date=?",
                                 (sym, t, dt))
             except Exception:
                 pass
