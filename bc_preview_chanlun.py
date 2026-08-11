@@ -73,14 +73,14 @@ def main():
         names[r[0]] = r[1]
 
     picks = sqlite3.connect(PICKS_DB, timeout=30)
-    picks.execute("DROP TABLE IF EXISTS preview_signals")
-    picks.execute("""CREATE TABLE preview_signals(
+    picks.execute("""CREATE TABLE IF NOT EXISTS preview_signals(
         symbol TEXT NOT NULL, name TEXT, signal_type TEXT NOT NULL, signal_date TEXT NOT NULL,
         price REAL, ref_zd REAL, ref_zg REAL, status TEXT DEFAULT 'preview',
         d3 INTEGER DEFAULT 0, w30 INTEGER DEFAULT 0, strength TEXT DEFAULT 'neutral',
         strength_score REAL DEFAULT 50,
         ts TEXT DEFAULT (datetime('now','localtime')))""")
-    picks.execute("CREATE INDEX idx_ps_date ON preview_signals(signal_date)")
+    picks.execute("DELETE FROM preview_signals")  # 覆盖式快照: 只清数据不重建表(历史DROP无必要, 并发更稳)
+    picks.execute("CREATE INDEX IF NOT EXISTS idx_ps_date ON preview_signals(signal_date)")
     # worth映射(W30用)
     worth = {}
     for r in picks.execute("SELECT date, symbol FROM bottom_confirm_picks WHERE status='worth'").fetchall():
