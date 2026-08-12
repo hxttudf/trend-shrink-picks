@@ -116,6 +116,9 @@ def main():
             print(f"  批{batch_i//BATCH+1}: 累计{total}条, {time.time()-t0:.0f}s", flush=True)
 
     picks.commit()
+    # 补录欠账: confirmed_date为空的信号用signal_date回填(近似首次算出日下界; 新信号INSERT时已写today, 不覆盖)
+    picks.execute("UPDATE chanlun_signals SET confirmed_date=signal_date WHERE confirmed_date IS NULL")
+    picks.commit()
     picks.close()
     seq.close()
     # 摘要(交付内容)
