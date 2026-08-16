@@ -79,7 +79,13 @@ def main():
         d3 INTEGER DEFAULT 0, w30 INTEGER DEFAULT 0, strength TEXT DEFAULT 'neutral',
         strength_score REAL DEFAULT 50,
         ts TEXT DEFAULT (datetime('now','localtime')))""")
-    picks.execute("DELETE FROM preview_signals WHERE ts < datetime('now','localtime','-7 days')")  # 留痕: 保留最近7天批次, 不覆盖(旧批次用ts区分)
+        # 批次标识: 按运行时段(11-13点=midday午间, 14点后=close收盘前), 语义化区分批次
+    import datetime as _dt
+    _now = _dt.datetime.now()
+    _h = _now.hour
+    BATCH = f"{TODAY}-{_now.strftime('%H%M')}-{'midday' if 11 <= _h < 14 else 'close'}"  # 可排序(时间前缀)+语义(时段后缀)
+    print(f"批次: {BATCH}", flush=True)
+    picks.execute("DELETE FROM preview_signals WHERE batch < datetime('now','localtime','-7 days') OR batch IS NULL")  # 留痕: 保留最近7天批次, 不覆盖
     picks.execute("CREATE INDEX IF NOT EXISTS idx_ps_date ON preview_signals(signal_date)")
     # worth映射(W30用)
     worth = {}
@@ -164,15 +170,15 @@ def main():
                                     break
                     except Exception:
                         pass
-                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score))
+                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score, BATCH))
                     by_type[typ] = by_type.get(typ, 0) + 1
                     if d == TODAY:
                         today_sigs.append((sym, nm, typ, d, p))
             if cur:
                 picks.executemany(
                     "INSERT INTO preview_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score, batch) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
