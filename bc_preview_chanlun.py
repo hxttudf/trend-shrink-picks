@@ -79,7 +79,7 @@ def main():
         d3 INTEGER DEFAULT 0, w30 INTEGER DEFAULT 0, strength TEXT DEFAULT 'neutral',
         strength_score REAL DEFAULT 50,
         ts TEXT DEFAULT (datetime('now','localtime')))""")
-    picks.execute("DELETE FROM preview_signals")  # 覆盖式快照: 只清数据不重建表(历史DROP无必要, 并发更稳)
+    picks.execute("DELETE FROM preview_signals WHERE ts < datetime('now','localtime','-7 days')")  # 留痕: 保留最近7天批次, 不覆盖(旧批次用ts区分)
     picks.execute("CREATE INDEX IF NOT EXISTS idx_ps_date ON preview_signals(signal_date)")
     # worth映射(W30用)
     worth = {}
