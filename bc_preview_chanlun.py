@@ -83,10 +83,13 @@ def main():
     import datetime as _dt
     _now = _dt.datetime.now()
     _h = _now.hour
-    BATCH = f"{TODAY}-{_now.strftime('%H%M')}-{'midday' if 11 <= _h < 14 else 'close'}"  # 可排序(时间前缀)+语义(时段后缀)
-    print(f"批次: {BATCH}", flush=True)
-    picks.execute("DELETE FROM preview_signals WHERE batch < datetime('now','localtime','-7 days') OR batch IS NULL")  # 留痕: 保留最近7天批次, 不覆盖
+    BATCH_DATE = TODAY
+    BATCH_SEQ = 1 if 11 <= _h < 14 else 2  # 时段序号固定: midday=1, close=2 (不随具体时间漂移)
+    BATCH_LABEL = 'midday' if BATCH_SEQ == 1 else 'close'
+    print(f"批次: {BATCH_DATE} seq={BATCH_SEQ} ({BATCH_LABEL})", flush=True)
+    picks.execute("DELETE FROM preview_signals WHERE batch_date < date('now','localtime','-7 days')")  # 留痕: 保留最近7天批次, 不覆盖
     picks.execute("CREATE INDEX IF NOT EXISTS idx_ps_date ON preview_signals(signal_date)")
+    picks.execute("CREATE INDEX IF NOT EXISTS idx_ps_batch ON preview_signals(batch_date, batch_seq)")
     # worth映射(W30用)
     worth = {}
     for r in picks.execute("SELECT date, symbol FROM bottom_confirm_picks WHERE status='worth'").fetchall():
@@ -170,15 +173,15 @@ def main():
                                     break
                     except Exception:
                         pass
-                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score, BATCH))
+                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score, BATCH_DATE, BATCH_SEQ, BATCH_LABEL))
                     by_type[typ] = by_type.get(typ, 0) + 1
                     if d == TODAY:
                         today_sigs.append((sym, nm, typ, d, p))
             if cur:
                 picks.executemany(
                     "INSERT INTO preview_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score, batch) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score, batch_date, batch_seq, batch_label) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
