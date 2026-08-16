@@ -54,15 +54,25 @@ def main():
         print("无数据")
         return
     conn = sqlite3.connect(SEQ_DB)
-    conn.execute("DROP TABLE IF EXISTS preview_daily")
-    conn.execute("""CREATE TABLE preview_daily(
+    conn.execute("""CREATE TABLE IF NOT EXISTS preview_daily(
         symbol TEXT, date TEXT, open REAL, high REAL, low REAL,
         close REAL, volume REAL, close_qfq REAL, amount REAL,
+        batch_date TEXT, batch_seq INTEGER, batch_label TEXT,
         ts TEXT DEFAULT (datetime('now','localtime')))""")
-    conn.execute("CREATE INDEX idx_pd_sym ON preview_daily(symbol)")
+    # 批次标识(与bc_preview_chanlun一致): 时段序号固定 midday=1/close=2, 不随具体时间漂移
+    import datetime as _dt
+    _h = _dt.datetime.now().hour
+    BD = TODAY
+    BS = 1 if 11 <= _h < 14 else 2
+    BL = 'midday' if BS == 1 else 'close'
+    print(f"盘中K批次: {BD} seq={BS} ({BL})", flush=True)
+    conn.execute("DELETE FROM preview_daily WHERE batch_date < date('now','localtime','-7 days')")  # 留痕: 保留7天, 不覆盖
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_pd_sym ON preview_daily(symbol)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_pd_batch ON preview_daily(batch_date, batch_seq)")
     conn.executemany(
-        "INSERT INTO preview_daily (symbol,date,open,high,low,close,volume,close_qfq,amount) "
-        "VALUES (?,?,?,?,?,?,?,?,?)", rows)
+        "INSERT INTO preview_daily (symbol,date,open,high,low,close,volume,close_qfq,amount,batch_date,batch_seq,batch_label) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        [r + (BD, BS, BL) for r in rows])
     conn.commit()
     conn.close()
     print(f"✅ 盘中数据: {done}只(失败{fails}) -> preview_daily | {time.time()-t0:.0f}s")

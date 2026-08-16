@@ -56,7 +56,10 @@ def _lin(v, p20, p80, lo, hi):
 def main():
     t0 = time.time()
     seq = sqlite3.connect(SEQ_DB)
-    pd = seq.execute("SELECT MAX(date) FROM preview_daily").fetchone()
+    pd = seq.execute(
+        "SELECT MAX(date) FROM preview_daily "
+        "WHERE (batch_date, batch_seq) IN (SELECT batch_date, batch_seq FROM preview_daily "
+        "ORDER BY batch_date DESC, batch_seq DESC LIMIT 1)").fetchone()
     if not pd or not pd[0]:
         print("无盘中数据, 先跑 bc_preview_data.py")
         return
@@ -107,7 +110,8 @@ def main():
             "ORDER BY symbol, date", batch + [TODAY]).fetchall()
         prow = seq.execute(
             "SELECT symbol, high, low, close, close_qfq, volume FROM preview_daily "
-            f"WHERE symbol IN ({','.join('?' * len(batch))})", batch).fetchall()
+            f"WHERE (batch_date, batch_seq) IN (SELECT batch_date, batch_seq FROM preview_daily "
+            f"ORDER BY batch_date DESC, batch_seq DESC LIMIT 1) AND symbol IN ({','.join('?' * len(batch))})", batch).fetchall()
         pper = {r[0]: r for r in prow}
         per = {}
         for r in rows:
