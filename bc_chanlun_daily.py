@@ -124,6 +124,14 @@ def main():
     # 摘要(交付内容)
     parts = " ".join(f"{k}{v}" for k, v in sorted(by_type.items()))
     print(f"📐 缠论每日更新完成: {total}条信号 ({parts}) 耗时{time.time()-t0:.0f}s")
+    # 重建日期统计缓存(chanlun_dates_cache, 供dates接口直读毫秒返回)
+    try:
+        import subprocess
+        subprocess.run([sys.executable, '/home/ubuntu/trend-shrink-picks/rebuild_dates_cache.py'],
+                       timeout=300, capture_output=True)
+        print("日期统计缓存已重建")
+    except Exception as e:
+        print(f"日期统计缓存重建失败: {e}")
 
 
 if __name__ == "__main__":
