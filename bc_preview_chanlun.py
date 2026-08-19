@@ -146,6 +146,9 @@ def main():
                 continue
             wd = set(r[0] for r in qf[-WINDOW:])
             cur = []
+            # 去重: find_all_signals对同一(类型,日期)可能判出多条(如华新建材二买×2), 只保留1条
+            seen_sig = set()
+            sigs = [s for s in sigs if not (s[0], s[1]) in seen_sig and not seen_sig.add((s[0], s[1]))]
             for typ, d, p, zd, zg in sigs:
                 if d in wd:
                     # 只写未确认窗口(全市场最后2个交易日: 今+昨), 更早的已确认信号由正式表提供
