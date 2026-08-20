@@ -21,7 +21,11 @@ def main():
     syms = [r[0] for r in seq.execute(
         "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2024-01-01'").fetchall()]
     names = {}
-    for r in seq.execute("SELECT symbol, name FROM stock_basics WHERE date=(SELECT MAX(date) FROM stock_basics)"):
+    # 每股取最新日期记录(不依赖统一MAX(date): 部分股票/ETF当日未写入时名称不缺失)
+    for r in seq.execute(
+            "SELECT b.symbol, b.name FROM stock_basics b "
+            "JOIN (SELECT symbol, MAX(date) md FROM stock_basics GROUP BY symbol) x "
+            "ON b.symbol=x.symbol AND b.date=x.md"):
         names[r[0]] = r[1]
 
     picks = sqlite3.connect(PICKS_DB, timeout=30)
