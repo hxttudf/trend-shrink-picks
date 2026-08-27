@@ -42,6 +42,8 @@ def main():
 
     t0 = time.time()
     total = 0
+    win_n = 0    # 7日窗口内实际信号数(=sum(by_type), 摘要括号口径)
+    sync_n = 0   # 全历史结构UPSERT次数(多为已有行重写, 不代表新信号)
     by_type = {}
     for batch_i in range(0, len(syms), BATCH):
         batch = syms[batch_i:batch_i + BATCH]
@@ -61,6 +63,7 @@ def main():
                             bs.get('zd') or 0, bs.get('zg') or 0,
                             bs.get('strength') or 'neutral', bs.get('score') or 50))
                 by_type[bs['type']] = by_type.get(bs['type'], 0) + 1
+                win_n += 1
             if cur:
                 picks.executemany(
                     "INSERT INTO chanlun_signals "
@@ -89,6 +92,7 @@ def main():
                     "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price, status='ok'",
                     (sym, nm, x['type'], x['time'], x['price'], today, later))
                 total += 1
+                sync_n += 1
             # 窗口内信号: 更新分数/强度(有score)
             for bs in d.get("buy_sell", []):
                 picks.execute(
@@ -125,9 +129,10 @@ def main():
     picks.commit()
     picks.close()
     seq.close()
-    # 摘要(交付内容)
+    # 摘要(交付内容) — 两个口径分开, 勿混用total:
+    #   sync_n = 全历史结构UPSERT次数(多为已有行重写), win_n+by_type = 7日窗口实际信号
     parts = " ".join(f"{k}{v}" for k, v in sorted(by_type.items()))
-    print(f"📐 缠论每日更新完成: {total}条信号 ({parts}) 耗时{time.time()-t0:.0f}s")
+    print(f"📐 缠论每日更新完成: 当日窗口信号{win_n}条 ({parts}); 全历史结构同步{sync_n}次 耗时{time.time()-t0:.0f}s")
     # 重建日期统计缓存(chanlun_dates_cache, 供dates接口直读毫秒返回)
     try:
         import subprocess
