@@ -72,7 +72,8 @@ def main():
     syms = [r[0] for r in seq.execute(
         "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2019-01-01'").fetchall()]
     names = {}
-    for r in seq.execute("SELECT symbol, name FROM stock_basics WHERE date=(SELECT MAX(date) FROM stock_basics)"):
+    for r in seq.execute("""SELECT symbol, name FROM stock_basics WHERE (symbol, date) IN
+            (SELECT symbol, MAX(date) FROM stock_basics GROUP BY symbol)"""):
         names[r[0]] = r[1]
 
     picks = sqlite3.connect(PICKS_DB, timeout=30)

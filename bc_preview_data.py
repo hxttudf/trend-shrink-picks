@@ -14,6 +14,29 @@ SEQ_DB = "/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db"
 TODAY = date.today().strftime("%Y-%m-%d")
 
 
+def _sina_today(code, market):
+    """新浪兜底: 返回(code, k)或None. 新浪不复权 → close_qfq=close; volume股→手÷100"""
+    import subprocess as _sp
+    prefix = "sh" if market == "1" else "sz"
+    url = (f"https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData"
+           f"?symbol={prefix}{code}&scale=240&ma=no&datalen=3")
+    try:
+        r = _sp.run(["curl", "-sL", "-m", "12", "--noproxy", "*", url,
+                     "-H", "Referer: https://finance.sina.com.cn"], capture_output=True, text=True)
+        import json
+        data = json.loads(r.stdout) if r.stdout else []
+        for d in data:
+            if d.get("day", "").startswith(TODAY):
+                v = float(d["volume"]) / 100.0
+                return code, {"date": TODAY, "open": float(d["open"]), "high": float(d["high"]),
+                              "low": float(d["low"]), "close": float(d["close"]),
+                              "volume": v, "close_qfq": float(d["close"]),
+                              "amount": round(float(d["close"]) * v, 2)}
+    except Exception:
+        pass
+    return None
+
+
 def fetch_one(code, name, market):
     try:
         klines = backfill_v2.fetch_kline_tx(code, market)
@@ -22,7 +45,8 @@ def fetch_one(code, name, market):
                 return code, k
     except Exception:
         pass
-    return code, None
+    # 腾讯失败(限流/超时) → 新浪兜底
+    return _sina_today(code, market) or (code, None)
 
 
 def main():
@@ -33,7 +57,17 @@ def main():
         print("获取A股列表失败")
         sys.exit(1)
     filtered = [(c, n, m) for c, n, m in all_stocks if not c.startswith(("8", "4", "920"))]
-    print(f"全量: {len(filtered)} 只(跳过北交所{len(all_stocks)-len(filtered)})", flush=True)
+    print(f"股票: {len(filtered)} 只(跳过北交所{len(all_stocks)-len(filtered)})", flush=True)
+
+    # ETF并入预信号链路(与正式update_etf同源): stock_basics is_etf=1 → 腾讯fetch_kline_tx
+    seq0 = sqlite3.connect("/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db")
+    etfs = [r[0] for r in seq0.execute(
+        "SELECT DISTINCT symbol FROM stock_basics WHERE is_etf=1 ORDER BY symbol")]
+    seq0.close()
+    # ETF市场码: 5开头=沪(1), 其余(15/16等深市)=0
+    etf_list = [(c, "", ("1" if c[0] == "5" else "0")) for c in etfs]
+    filtered = filtered + etf_list
+    print(f"股票 {len(filtered) - len(etf_list)} 只 + ETF {len(etf_list)} 只, 合计拉取 {len(filtered)}", flush=True)
 
     done = fails = 0
     rows = []
