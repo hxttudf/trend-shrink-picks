@@ -54,6 +54,7 @@ def run_picks(today_str):
         WITH base AS (
             SELECT symbol, date, close_qfq AS price, close AS close_raw, volume, turnover, open
             FROM stock_daily WHERE close_qfq > 0
+              AND symbol NOT LIKE '%.%'  -- 排除指数(000001.SH等): 指数不可交易, 只进缠论信号不进选股
               AND date >= date('{today_str}', '-120 days')
         ),
         mavgs AS (

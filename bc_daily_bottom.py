@@ -124,7 +124,7 @@ def main():
     # 最新交易日(不含target) 用于streak的"s65参照"不需要 — streak用内存重算
 
     symbols = [r[0] for r in conn.execute(
-        "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2018-01-01'")]
+        "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2018-01-01' AND symbol NOT LIKE '%.%'")]
     print(f"全市场 {len(symbols)} 只 | 目标日 {target}", flush=True)
 
     new_rows = []  # scores行

@@ -109,7 +109,7 @@ def main():
     print(f"回测区间: {bt_dates[0]} ~ {bt_dates[-1]}, {len(bt_dates)}个回测日", flush=True)
 
     symbols = [r[0] for r in conn.execute(
-        "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2018-01-01'"
+        "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2018-01-01' AND symbol NOT LIKE '%.%'"
     )]
     print(f"全市场 {len(symbols)} 只", flush=True)
 
