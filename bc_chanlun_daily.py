@@ -58,20 +58,22 @@ def main():
             if 'ST' in nm.upper():
                 continue
             cur = []
+            _cat = 'index' if '.' in sym else 'stock'
             for bs in d.get("buy_sell", []):
                 cur.append((sym, nm, bs['type'], bs['time'], bs['price'],
                             bs.get('zd') or 0, bs.get('zg') or 0,
-                            bs.get('strength') or 'neutral', bs.get('score') or 50))
+                            bs.get('strength') or 'neutral', bs.get('score') or 50, _cat))
                 by_type[bs['type']] = by_type.get(bs['type'], 0) + 1
                 win_n += 1
             if cur:
                 picks.executemany(
                     "INSERT INTO chanlun_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score) "
-                    "VALUES (?,?,?,?,?,?,?,'ok',?,?) "
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, strength, strength_score, category) "
+                    "VALUES (?,?,?,?,?,?,?,'ok',?,?,?) "
                     "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET "
                     "price=excluded.price, ref_zd=excluded.ref_zd, ref_zg=excluded.ref_zg, "
-                    "status='ok', strength=excluded.strength, strength_score=excluded.strength_score", cur)
+                    "status='ok', strength=excluded.strength, strength_score=excluded.strength_score, "
+                    "category=excluded.category", cur)
                 total += len(cur)
             # 全历史结构同步(UPSERT): 新信号记录确认信息(confirmed_date=今天, later=交易日差>=2才算事后), 已有只更新价格+状态
             today = d.get('cur_date') or last_date
@@ -87,10 +89,10 @@ def main():
                 # 事后确认判定交给回放脚本(逐日验证首次可算出日); daily新记录默认当时确认(later=0, 不误标"后")
                 later = 0
                 picks.execute(
-                    "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later) "
-                    "VALUES (?,?,?,?,?,'ok',?,?) "
+                    "INSERT INTO chanlun_signals (symbol, name, signal_type, signal_date, price, status, confirmed_date, confirmed_later, category) "
+                    "VALUES (?,?,?,?,?,'ok',?,?,?) "
                     "ON CONFLICT(symbol, signal_type, signal_date) DO UPDATE SET price=excluded.price, status='ok'",
-                    (sym, nm, x['type'], x['time'], x['price'], today, later))
+                    (sym, nm, x['type'], x['time'], x['price'], today, later, _cat))
                 total += 1
                 sync_n += 1
             # 窗口内信号: 更新分数/强度(有score)
