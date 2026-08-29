@@ -17,9 +17,10 @@ def main():
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     total_rows = 0
     for etf in (0, 1):
-        cond = ETF_COND if etf else f"NOT {ETF_COND}"
+        # etf=0(股票视图)用category='stock'精确排除ETF和指数; etf=1保持前缀口径(历史一致)
+        cond = ETF_COND if etf else "category='stock'"
         jcond = "(a.symbol LIKE '5%' OR a.symbol LIKE '15%' OR a.symbol LIKE '16%')" if etf \
-            else "NOT (a.symbol LIKE '5%' OR a.symbol LIKE '15%' OR a.symbol LIKE '16%')"
+            else "a.category='stock'"
         for typ in TYPES:
             if typ == '二三买':
                 sql = (f"SELECT a.signal_date, COUNT(DISTINCT a.symbol) FROM chanlun_signals a "

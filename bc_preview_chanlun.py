@@ -72,9 +72,13 @@ def main():
     syms = [r[0] for r in seq.execute(
         "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2019-01-01'").fetchall()]
     names = {}
-    for r in seq.execute("""SELECT symbol, name FROM stock_basics WHERE (symbol, date) IN
+    cats = {}
+    for r in seq.execute("""SELECT symbol, name, is_etf FROM stock_basics WHERE (symbol, date) IN
             (SELECT symbol, MAX(date) FROM stock_basics GROUP BY symbol)"""):
         names[r[0]] = r[1]
+        # is_etf三态(0=股票/1=ETF/2=指数) → category; 无basics行按后缀兜底
+        cats[r[0]] = {0: 'stock', 1: 'etf', 2: 'index'}.get(r[2],
+                          'index' if '.' in r[0] else 'stock')
 
     picks = sqlite3.connect(PICKS_DB, timeout=30)
     picks.execute("""CREATE TABLE IF NOT EXISTS preview_signals(
@@ -181,15 +185,16 @@ def main():
                                     break
                     except Exception:
                         pass
-                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score, BATCH_DATE, BATCH_SEQ, BATCH_LABEL))
+                    cur.append((sym, nm, typ, d, p, zd, zg, st, f_d3, f_w30, f_str, f_score, BATCH_DATE, BATCH_SEQ, BATCH_LABEL,
+                                cats.get(sym, 'index' if '.' in sym else 'stock')))
                     by_type[typ] = by_type.get(typ, 0) + 1
                     if d == TODAY:
                         today_sigs.append((sym, nm, typ, d, p))
             if cur:
                 picks.executemany(
                     "INSERT INTO preview_signals "
-                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score, batch_date, batch_seq, batch_label) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", cur)
+                    "(symbol, name, signal_type, signal_date, price, ref_zd, ref_zg, status, d3, w30, strength, strength_score, batch_date, batch_seq, batch_label, category) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", cur)
                 total += len(cur)
         picks.commit()
         if batch_i % (BATCH * 5) == 0:

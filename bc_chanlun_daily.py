@@ -21,12 +21,16 @@ def main():
     syms = [r[0] for r in seq.execute(
         "SELECT DISTINCT symbol FROM stock_daily WHERE close_qfq>0 AND date>='2024-01-01'").fetchall()]
     names = {}
+    cats = {}
     # 每股取最新日期记录(不依赖统一MAX(date): 部分股票/ETF当日未写入时名称不缺失)
     for r in seq.execute(
-            "SELECT b.symbol, b.name FROM stock_basics b "
+            "SELECT b.symbol, b.name, b.is_etf FROM stock_basics b "
             "JOIN (SELECT symbol, MAX(date) md FROM stock_basics GROUP BY symbol) x "
             "ON b.symbol=x.symbol AND b.date=x.md"):
         names[r[0]] = r[1]
+        # is_etf三态(0=股票/1=ETF/2=指数) → category; 无basics行按后缀兜底
+        cats[r[0]] = {0: 'stock', 1: 'etf', 2: 'index'}.get(r[2],
+                          'index' if '.' in r[0] else 'stock')
 
     picks = sqlite3.connect(PICKS_DB, timeout=30)
     picks.execute("""CREATE TABLE IF NOT EXISTS chanlun_signals (
@@ -58,7 +62,7 @@ def main():
             if 'ST' in nm.upper():
                 continue
             cur = []
-            _cat = 'index' if '.' in sym else 'stock'
+            _cat = cats.get(sym, 'index' if '.' in sym else 'stock')
             for bs in d.get("buy_sell", []):
                 cur.append((sym, nm, bs['type'], bs['time'], bs['price'],
                             bs.get('zd') or 0, bs.get('zg') or 0,
