@@ -28,16 +28,17 @@ def _qt_today(code, market):
         if "=" not in t or "~" not in t:
             return None
         f = t.split('"')[1].split("~")
+        if len(f) < 37:
+            return None
         price, prev, openp = float(f[3]), float(f[4]), float(f[5])
         if price <= 0 or openp <= 0:
             return None
-        # 高低字段: ETF/股票[33][34]; 指数[34][35] — 自适应: 取不小于max(open,price)的最高候选
-        hi = max(float(f[33]), float(f[34]))
-        lo = min(float(f[33]), float(f[34]))
-        if hi < max(openp, price):  # 字段偏移右移一位(指数)
-            hi = max(float(f[34]), float(f[35]))
-            lo = min(float(f[34]), float(f[35]))
-        vol = float(f[6])  # 手
+        # split真实索引(实测518880/000001): [30]时间戳 [31]涨跌额 [32]涨跌幅% [33]最高 [34]最低 [35]价/量/额串 [36]量(手) [37]额(万元)
+        hi, lo = float(f[33]), float(f[34])
+        # 数据自洽校验: 高低必须包住开/收(防字段口径变化再错位)
+        if hi < max(openp, price) or lo > min(openp, price):
+            return None
+        vol = float(f[6])  # 手(与今开同段的基础字段)
         amt = float(f[37]) * 1e4 if len(f) > 37 and f[37] else 0.0  # 万元→元
         return code, {"date": TODAY, "open": openp, "high": hi, "low": lo, "close": price,
                       "volume": vol, "close_qfq": price, "amount": amt}
