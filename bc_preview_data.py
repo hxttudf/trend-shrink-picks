@@ -14,12 +14,45 @@ SEQ_DB = "/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db"
 TODAY = date.today().strftime("%Y-%m-%d")
 
 
+def _qt_today(code, market):
+    """腾讯qt实时快照合成当日K(盘中兜底, fqkline限流时用): 返回(code,k)或None. 不复权, close_qfq=close"""
+    import subprocess as _sp
+    prefix = "sh" if market == "1" else "sz"
+    code_qt = code.split(".")[0] if "." in code else code  # 指数000001.SH → qt代码不带后缀
+    sym = f"{prefix}{code_qt}"
+    url = f"https://qt.gtimg.cn/q={sym}"
+    try:
+        r = _sp.run(["curl", "-sL", "-m", "12", "--noproxy", "*", url,
+                     "-H", "Referer: https://gu.qq.com/"], capture_output=True)
+        t = r.stdout.decode("gbk", errors="ignore").strip()
+        if "=" not in t or "~" not in t:
+            return None
+        f = t.split('"')[1].split("~")
+        price, prev, openp = float(f[3]), float(f[4]), float(f[5])
+        if price <= 0 or openp <= 0:
+            return None
+        # 高低字段: ETF/股票[33][34]; 指数[34][35] — 自适应: 取不小于max(open,price)的最高候选
+        hi = max(float(f[33]), float(f[34]))
+        lo = min(float(f[33]), float(f[34]))
+        if hi < max(openp, price):  # 字段偏移右移一位(指数)
+            hi = max(float(f[34]), float(f[35]))
+            lo = min(float(f[34]), float(f[35]))
+        vol = float(f[6])  # 手
+        amt = float(f[37]) * 1e4 if len(f) > 37 and f[37] else 0.0  # 万元→元
+        return code, {"date": TODAY, "open": openp, "high": hi, "low": lo, "close": price,
+                      "volume": vol, "close_qfq": price, "amount": amt}
+    except Exception:
+        return None
+
+
 def _sina_today(code, market):
     """新浪兜底: 返回(code, k)或None. 新浪不复权 → close_qfq=close; volume股→手÷100"""
     import subprocess as _sp
     prefix = "sh" if market == "1" else "sz"
+    # 指数带后缀(000001.SH): 新浪symbol须去后缀
+    code_sina = code.split(".")[0] if "." in code else code
     url = (f"https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData"
-           f"?symbol={prefix}{code}&scale=240&ma=no&datalen=3")
+           f"?symbol={prefix}{code_sina}&scale=240&ma=no&datalen=3")
     try:
         r = _sp.run(["curl", "-sL", "-m", "12", "--noproxy", "*", url,
                      "-H", "Referer: https://finance.sina.com.cn"], capture_output=True, text=True)
@@ -45,8 +78,8 @@ def fetch_one(code, name, market):
                 return code, k
     except Exception:
         pass
-    # 腾讯失败(限流/超时) → 新浪兜底
-    return _sina_today(code, market) or (code, None)
+    # 腾讯fqkline失败(限流) → 腾讯qt实时合成当日K → 新浪(仅收盘后才有当日根)
+    return _qt_today(code, market) or _sina_today(code, market) or (code, None)
 
 
 def main():
