@@ -127,7 +127,7 @@ def main():
                 pass
         picks.commit()
         if batch_i % (BATCH * 5) == 0:
-            print(f"  批{batch_i//BATCH+1}: 累计{total}条, {time.time()-t0:.0f}s", flush=True)
+            pass  # 批次进度为调试信息, 不输出到微信(cron格式优化)
 
     picks.commit()
     # 补录欠账: confirmed_date为空的信号用signal_date回填(近似首次算出日下界; 新信号INSERT时已写today, 不覆盖), later=0当天确认
