@@ -4,6 +4,7 @@
 用法: python3 bc_chanlun_daily.py [window]
 stdout输出当日摘要(供cron no_agent交付)"""
 import sqlite3
+from datetime import date
 import sys
 import time
 
@@ -49,6 +50,7 @@ def main():
     win_n = 0    # 7日窗口内实际信号数(=sum(by_type), 摘要括号口径)
     sync_n = 0   # 全历史结构UPSERT次数(多为已有行重写, 不代表新信号)
     by_type = {}
+    by_type_strong = {}
     for batch_i in range(0, len(syms), BATCH):
         batch = syms[batch_i:batch_i + BATCH]
         for sym in batch:
@@ -68,6 +70,8 @@ def main():
                             bs.get('zd') or 0, bs.get('zg') or 0,
                             bs.get('strength') or 'neutral', bs.get('score') or 50, _cat))
                 by_type[bs['type']] = by_type.get(bs['type'], 0) + 1
+                if (bs.get('strength') or '') == 'strong':
+                    by_type_strong[bs['type']] = by_type_strong.get(bs['type'], 0) + 1
                 win_n += 1
             if cur:
                 picks.executemany(
@@ -135,10 +139,22 @@ def main():
     picks.commit()
     picks.close()
     seq.close()
-    # 摘要(交付内容) — 两个口径分开, 勿混用total:
+    # 摘要(交付内容) — 格式B版: 一买二买三买一卖二卖三卖顺序, 强信号括号注
     #   sync_n = 全历史结构UPSERT次数(多为已有行重写), win_n+by_type = 7日窗口实际信号
-    parts = " ".join(f"{k}{v}" for k, v in sorted(by_type.items()))
-    print(f"📐 缠论每日更新完成: 当日窗口信号{win_n}条 ({parts}); 全历史结构同步{sync_n}次 耗时{time.time()-t0:.0f}s")
+    _order = ["一买", "二买", "三买", "一卖", "二卖", "三卖"]
+    parts = " ｜ ".join(
+        f"{k} {by_type[k]}（强信号{by_type_strong.get(k, 0)}）" if k in by_type else f"{k} 0（强信号0）"
+        for k in _order if k in by_type or True)
+    _today_str = date.today().strftime("%Y-%m-%d")
+    out = f"""━━━ 📐 缠论每日信号 {_today_str} ━━━
+
+▍重算
+  全市场重算完成　耗时 {time.time()-t0:.0f}s
+  结构同步 {sync_n} 次
+
+▍7日窗口信号（共{win_n}条）
+  {parts}"""
+    print(out)
     # 重建日期统计缓存(chanlun_dates_cache, 供dates接口直读毫秒返回)
     try:
         import subprocess
