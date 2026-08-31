@@ -59,15 +59,18 @@ def main():
     filtered = [(c, n, m) for c, n, m in all_stocks if not c.startswith(("8", "4", "920"))]
     print(f"股票: {len(filtered)} 只(跳过北交所{len(all_stocks)-len(filtered)})", flush=True)
 
-    # ETF并入预信号链路(与正式update_etf同源): stock_basics is_etf=1 → 腾讯fetch_kline_tx
+    # ETF+指数并入预信号链路: stock_basics is_etf=1(ETF)/2(指数) → 腾讯fetch_kline_tx
     seq0 = sqlite3.connect("/home/ubuntu/Sequoia-X-a/data/sequoia_v2.db")
     etfs = [r[0] for r in seq0.execute(
         "SELECT DISTINCT symbol FROM stock_basics WHERE is_etf=1 ORDER BY symbol")]
+    idxs = [r[0] for r in seq0.execute(
+        "SELECT DISTINCT symbol FROM stock_basics WHERE is_etf=2 ORDER BY symbol")]
     seq0.close()
-    # ETF市场码: 5开头=沪(1), 其余(15/16等深市)=0
+    # ETF市场码: 5开头=沪(1), 其余(15/16等深市)=0; 指数: 000/397开头沪=1(000688/000300/000016/000001.SH), 399=深0
     etf_list = [(c, "", ("1" if c[0] == "5" else "0")) for c in etfs]
-    filtered = filtered + etf_list
-    print(f"股票 {len(filtered) - len(etf_list)} 只 + ETF {len(etf_list)} 只, 合计拉取 {len(filtered)}", flush=True)
+    idx_list = [(c, "", ("0" if c.startswith("399") else "1")) for c in idxs]
+    filtered = filtered + etf_list + idx_list
+    print(f"股票 {len(filtered)-len(etf_list)-len(idx_list)} 只 + ETF {len(etf_list)} 只 + 指数 {len(idx_list)} 只, 合计拉取 {len(filtered)}", flush=True)
 
     done = fails = 0
     rows = []
